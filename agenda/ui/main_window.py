@@ -160,7 +160,7 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(17, 15, 17, 16)
         layout.setSpacing(11)
         if title:
-                label = QLabel(title)
+            label = QLabel(title)
             label.setObjectName("PanelTitle")
             layout.addWidget(label)
         return frame, layout
