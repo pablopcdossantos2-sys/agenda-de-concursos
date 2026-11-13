@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
     QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -303,7 +304,9 @@ class MainWindow(QMainWindow):
         self.compare_score = QLabel("Selecione dois concursos e inicie a comparação.")
         self.compare_score.setStyleSheet("font-size:17pt; font-weight:700; color:#2864C5;")
         summary_layout.addWidget(self.compare_score)
-        self.compare_detail = QLabel("O resultado considera os tópicos cadastrados, não apenas os nomes das disciplinas.")
+        self.compare_detail = QLabel(
+            "Estimativa textual baseada nos tópicos cadastrados. Revise os pares sugeridos antes de tomar decisões de estudo."
+        )
         self.compare_detail.setWordWrap(True)
         self.compare_detail.setStyleSheet("color:#6F7E93;")
         summary_layout.addWidget(self.compare_detail)
@@ -442,6 +445,14 @@ class MainWindow(QMainWindow):
                 item = QTableWidgetItem(str(value or "—"))
                 item.setData(Qt.ItemDataRole.UserRole, contest["id"])
                 if column == 3:
+                    colors = {
+                        "Sem Previsão": ("#EEF1F5", "#526174"),
+                        "Previsto": ("#FFF2D9", "#9A5B00"),
+                        "Edital publicado": ("#E2F5EC", "#176B4B"),
+                    }
+                    background, foreground = colors.get(str(value), ("#EEF1F5", "#526174"))
+                    item.setBackground(QColor(background))
+                    item.setForeground(QColor(foreground))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.contest_table.setItem(row_index, column, item)
 
@@ -622,8 +633,10 @@ class MainWindow(QMainWindow):
             f"{result['disciplinas_comparadas']} disciplinas associadas · "
             f"{result['topicos_correspondentes']} tópicos correspondentes · "
             f"{result['topicos_exclusivos_a']} exclusivos do concurso A · "
-            f"{result['topicos_exclusivos_b']} exclusivos do concurso B"
+            f"{result['topicos_exclusivos_b']} exclusivos do concurso B. "
+            "Revise os pares sugeridos: trata-se de uma estimativa textual."
         )
+        self.compare_detail.setToolTip(result["metodologia"])
         self.compare_tree.clear()
         for discipline in result["disciplinas"]:
             name_a = discipline.get("disciplina_a") or "—"
