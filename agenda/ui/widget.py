@@ -1,87 +1,127 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
 
-from PySide6.QtCore import Qt, QSize, QPoint
-from PySide6.QtGui import QGuiApplication, QColor, QIcon
+from PySide6.QtCore import Qt, QPoint, Signal
+from PySide6.QtGui import QGuiApplication, QIcon
+from PySide6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QWidget
 
 from agenda.ui.assets import asset_path
-from PySide6.QtWidgets import QFrame, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget, QPushButton
-
-
-STATUS_COLORS = {
-    "Previsto": "#D97706",
-    "Edital publicado": "#16835D",
-    "Sem Previsão": "#64748B",
-}
+from agenda.ui.cards import ContestCard
+from agenda.ui.styles import THEMES
 
 
 class DesktopWidget(QWidget):
-    """Widget compacto destacável; permanece acessível enquanto estiver visível."""
+    """Widget de área de trabalho com cards dimensionados sem barras de rolagem."""
+
+    contest_selected = Signal(int)
 
     def __init__(self, database, parent=None):
-        super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        super().__init__(
+            parent,
+            Qt.WindowType.Tool
+            | Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint,
+        )
         self.database = database
-        self.item_limit = int(database.get_setting("widget_items", "5") or 5)
+        self.item_limit = self._setting_int("widget_items", 5, 1, 20)
+        self.widget_width = self._setting_int("widget_width", 390, 320, 700)
+        self.widget_height = self._setting_int("widget_height", 470, 300, 900)
         self._drag_offset: QPoint | None = None
         self._positioned = False
+
+        self.setObjectName("DesktopWidgetRoot")
         self.setWindowTitle("Agenda de Concursos")
         self.setWindowIcon(QIcon(str(asset_path("app_icon.svg"))))
+        self.set_dimensions(self.widget_width, self.widget_height)
         self.apply_theme(database.get_setting("theme", "claro"))
-        self.setMinimumWidth(320)
-        self.setMaximumWidth(390)
+
         root = QVBoxLayout(self)
-        root.setContentsMargins(15, 13, 15, 13)
-        top = QVBoxLayout()
-        title_row = QVBoxLayout()
+        root.setContentsMargins(14, 12, 14, 12)
+        root.setSpacing(8)
+
+        header = QFrame()
+        header.setObjectName("WidgetHeader")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(2, 0, 2, 4)
+        header_layout.setSpacing(2)
+
         title = QLabel("PRÓXIMOS CONCURSOS")
-        title.setObjectName("Title")
+        title.setObjectName("WidgetTitle")
+        title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         subtitle = QLabel("Sua agenda de oportunidades")
-        subtitle.setObjectName("Sub")
-        title_row.addWidget(title)
-        title_row.addWidget(subtitle)
-        root.addLayout(title_row)
-        self.items = QListWidget()
-        self.items.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-        root.addWidget(self.items)
-        footer = QVBoxLayout()
+        subtitle.setObjectName("WidgetSubtitle")
+        subtitle.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        header_layout.addWidget(title)
+        header_layout.addWidget(subtitle)
+        root.addWidget(header)
+
+        self.cards_host = QWidget()
+        self.cards_host.setObjectName("WidgetCardsHost")
+        self.cards_layout = QVBoxLayout(self.cards_host)
+        self.cards_layout.setContentsMargins(0, 0, 0, 0)
+        self.cards_layout.setSpacing(7)
+        self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        root.addWidget(self.cards_host, 1)
+
+        footer = QFrame()
+        footer.setObjectName("WidgetFooter")
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(0, 3, 0, 0)
         self.count_label = QLabel("")
-        self.count_label.setObjectName("Sub")
-        footer.addWidget(self.count_label)
-        close = QPushButton("Ocultar widget")
+        self.count_label.setObjectName("WidgetSubtitle")
+        self.count_label.setWordWrap(True)
+        footer_layout.addWidget(self.count_label, 1)
+        close = QPushButton("Ocultar")
         close.clicked.connect(self.hide)
-        footer.addWidget(close)
-        root.addLayout(footer)
+        footer_layout.addWidget(close)
+        root.addWidget(footer)
+
         self.refresh()
+
+    @staticmethod
+    def _setting_int(self, key: str, default: int, minimum: int, maximum: int) -> int:
+        try:
+            value = int(self.database.get_setting(key, str(default)) or default)
+        except (TypeError, ValueError):
+            value = default
+        return max(minimum, min(maximum, value))
 
     def apply_theme(self, theme: str) -> None:
         self.theme = theme if theme in ("claro", "escuro") else "claro"
-        if self.theme == "escuro":
-            colors = {
-                "background": "#101C30", "card": "#1B2B43", "border": "#3B5270",
-                "text": "#F5F8FC", "muted": "#C7D3E1", "button": "#344A68",
-                "button_hover": "#425D81",
-            }
-        else:
-            colors = {
-                "background": "#F4F7FC", "card": "#FFFFFF", "border": "#D4DEEA",
-                "text": "#182437", "muted": "#53647A", "button": "#E8EEF6",
-                "button_hover": "#D8E4F2",
-            }
+        c = THEMES[self.theme]
         self.setStyleSheet(f"""
-            QWidget {{ background:{colors['background']}; color:{colors['text']}; font-family:'Segoe UI'; }}
-            QFrame#Card {{ background:{colors['card']}; border:1px solid {colors['border']}; border-radius:10px; }}
-            QLabel#Title {{ color:{colors['text']}; font-size:12pt; font-weight:700; }}
-            QLabel#Sub {{ color:{colors['muted']}; font-size:8pt; }}
-            QLabel#Contest {{ color:{colors['text']}; font-weight:600; }}
-            QLabel#Date {{ color:{colors['muted']}; font-size:8pt; }}
-            QPushButton {{ background:{colors['button']}; border:1px solid {colors['border']}; color:{colors['text']}; padding:6px 10px; border-radius:6px; }}
-            QPushButton:hover {{ background:{colors['button_hover']}; }}
-            QListWidget {{ border:0; background:transparent; color:{colors['text']}; }}
-            QListWidget::item {{ border:0; padding:3px; }}
+            QWidget#DesktopWidgetRoot {{ background:{c['background']}; color:{c['text']};
+                border:1px solid {c['border']}; border-radius:13px; }}
+            QFrame#WidgetHeader, QFrame#WidgetFooter {{ background:transparent; border:none; }}
+            QWidget#WidgetCardsHost {{ background:transparent; border:none; }}
+            QLabel#WidgetTitle {{ background:transparent; color:{c['text']}; font-size:12pt; font-weight:800; }}
+            QLabel#WidgetSubtitle {{ background:transparent; color:{c['muted']}; font-size:8pt; }}
+            QPushButton {{ background:{c['secondary']}; color:{c['text']}; border:1px solid {c['border']};
+                border-radius:7px; padding:6px 10px; font-weight:600; }}
+            QPushButton:hover {{ background:{c['secondary_hover']}; }}
+            QFrame#ContestCard {{ background:{c['panel']}; border:1px solid {c['border']}; border-radius:10px; }}
+            QFrame#ContestCard:hover {{ background:{c['card_hover']}; border:1px solid #4D8DF0; }}
+            QLabel#ContestCardTitle {{ background:transparent; color:{c['text']}; font-weight:700; font-size:9pt; }}
+            QLabel#ContestCardDescription, QLabel#ContestCardMeta {{
+                background:transparent; color:{c['muted']}; font-size:8pt; }}
+            QLabel#ContestCardStatus {{ background:{c['chip_bg']}; color:{c['chip_text']};
+                border:1px solid {c['border']}; border-radius:7px; padding:1px 6px;
+                font-size:7pt; font-weight:700; }}
             QToolTip {{ background:#0D1B32; color:#FFFFFF; border:1px solid #42536B; padding:6px; }}
         """)
+        self.update()
+
+    def set_dimensions(self, width: int, height: int) -> None:
+        self.widget_width = max(320, min(700, int(width)))
+        self.widget_height = max(300, min(900, int(height)))
+        self.setFixedSize(self.widget_width, self.widget_height)
+        if hasattr(self, "cards_layout"):
+            self.refresh()
+
+    def set_item_limit(self, limit: int) -> None:
+        self.item_limit = max(1, min(20, int(limit)))
+        self.refresh()
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -89,7 +129,10 @@ class DesktopWidget(QWidget):
             screen = self.screen() or QGuiApplication.primaryScreen()
             if screen is not None:
                 area = screen.availableGeometry()
-                self.move(area.right() - self.width() - 22, area.top() + 22)
+                self.move(
+                    min(area.right() - self.width() - 12, max(area.left() + 12, area.right() - self.width() - 22)),
+                    area.top() + 22,
+                )
             self._positioned = True
 
     def mousePressEvent(self, event) -> None:
@@ -110,57 +153,52 @@ class DesktopWidget(QWidget):
         self._drag_offset = None
         super().mouseReleaseEvent(event)
 
-    def set_item_limit(self, limit: int) -> None:
-        self.item_limit = max(1, min(20, int(limit)))
-        self.refresh()
-
-    def _status_color(self, status: str) -> str:
-        if self.theme == "escuro":
-            return {
-                "Previsto": "#F6CD83",
-                "Edital publicado": "#9BE2BE",
-                "Sem Previsão": "#D0D9E5",
-            }.get(status, "#F5F8FC")
-        return {
-            "Previsto": "#925100",
-            "Edital publicado": "#116B4A",
-            "Sem Previsão": "#516174",
-        }.get(status, "#182437")
+    def _clear_cards(self) -> None:
+        while self.cards_layout.count():
+            item = self.cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
 
     def refresh(self) -> None:
-        self.items.clear()
+        if not hasattr(self, "cards_layout"):
+            return
+        self._clear_cards()
         contests = self.database.list_contests()
-        today_iso = date.today().isoformat()
+        today = date.today().isoformat()
         eligible = []
         for item in contests:
             event_date = item.get("data_prova") or item.get("data_prevista") or ""
-            if not event_date or event_date >= today_iso:
+            if not event_date or event_date >= today:
                 eligible.append(item)
-        eligible.sort(key=lambda item: item.get("data_prova") or item.get("data_prevista") or "9999-12-31")
-        visible = eligible[:self.item_limit]
-        today = date.today()
+
+        eligible.sort(
+            key=lambda item: item.get("data_prova") or item.get("data_prevista") or "9999-12-31"
+        )
+
+        # Reserva espaço para cabeçalho, margens e rodapé. O widget nunca cria scrollbar:
+        # somente os cards que cabem integralmente na altura escolhida são renderizados.
+        card_height = 78
+        available_height = max(78, self.height() - 142)
+        fit_count = max(1, available_height // (card_height + 7))
+        visible = eligible[: min(self.item_limit, fit_count)]
+
         for contest in visible:
-            event_date = contest.get("data_prova") or contest.get("data_prevista") or ""
-            date_label = event_date or "Data ainda não informada"
-            try:
-                parsed = date.fromisoformat(event_date)
-                delta = (parsed - today).days
-                if delta == 0:
-                    date_label = "Hoje"
-                elif delta > 0:
-                    date_label = f"Em {delta} dias · {event_date}"
-                else:
-                    date_label = f"Data passada · {event_date}"
-            except ValueError:
-                pass
-            status = contest.get("status") or "Sem Previsão"
-            text = f"{contest.get('nome', 'Concurso')}\n{date_label}  •  {status}"
-            item = QListWidgetItem(text)
-            item.setForeground(QColor(self._status_color(status)))
-            item.setToolTip(f"{contest.get('orgao','')} — {contest.get('cargo','')}")
-            item.setSizeHint(QSize(340, 56))
-            self.items.addItem(item)
-        if not visible:
-            self.items.addItem(QListWidgetItem("Nenhum concurso com data cadastrada."))
-        self.count_label.setText(f"Exibindo {len(visible)} de {len(eligible)} concursos futuros ou sem data")
-        self.adjustSize()
+            card = ContestCard(contest, compact=True, parent=self.cards_host)
+            card.setFixedWidth(max(260, self.width() - 30))
+            card.clicked.connect(self.contest_selected.emit)
+            self.cards_layout.addWidget(card)
+
+        if not eligible:
+            empty = QLabel("Nenhum concurso futuro ou sem data cadastrado.")
+            empty.setObjectName("WidgetSubtitle")
+            empty.setWordWrap(True)
+            self.cards_layout.addWidget(empty)
+
+        omitted = max(0, len(eligible) - len(visible))
+        if omitted:
+            self.count_label.setText(
+                f"Mostrando {len(visible)} de {len(eligible)}. Aumente a altura para ver mais cards."
+            )
+        else:
+            self.count_label.setText(f"{len(visible)} concurso(s) exibido(s)")
