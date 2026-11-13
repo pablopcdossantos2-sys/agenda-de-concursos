@@ -17,6 +17,9 @@ THEMES = {
         "danger_bg": "#FFF1F0",
         "danger_text": "#B42318",
         "danger_border": "#F2C8C4",
+        "card_hover": "#F5F9FF",
+        "chip_bg": "#E7EFFB",
+        "chip_text": "#214B82",
     },
     "escuro": {
         "background": "#111827",
@@ -36,25 +39,41 @@ THEMES = {
         "danger_bg": "#492C2A",
         "danger_text": "#FFB4AB",
         "danger_border": "#75413D",
+        "card_hover": "#26364A",
+        "chip_bg": "#304866",
+        "chip_text": "#E5F0FF",
     },
 }
 
 
 def theme_stylesheet(theme: str = "claro") -> str:
-    """Retorna uma folha de estilos com contraste explícito para o tema escolhido."""
-    colors = THEMES.get(theme, THEMES["claro"])
-    c = colors
+    """Retorna uma folha de estilos com superfícies explícitas e texto legível."""
+    c = THEMES.get(theme, THEMES["claro"])
     return f"""
+    /* Não pinte cada QWidget individualmente: labels devem herdar a superfície do painel. */
     QWidget {{
-        background: {c['background']};
+        background: transparent;
         color: {c['text']};
         font-family: "Segoe UI";
         font-size: 10pt;
     }}
-    QMainWindow, QDialog {{ background: {c['background']}; }}
+    QMainWindow, QDialog, QWidget#CentralRoot, QWidget#DetailsContent {{
+        background: {c['background']};
+        color: {c['text']};
+    }}
+    QLabel, QCheckBox, QRadioButton {{
+        background: transparent;
+        color: {c['text']};
+    }}
+    QFrame {{ background: transparent; }}
     QFrame#Sidebar {{ background: {c['sidebar']}; border: none; }}
-    QLabel#Brand {{ color: #FFFFFF; font-size: 17pt; font-weight: 700; padding: 8px 4px 18px; }}
-    QLabel#BrandSub {{ color: #B8C8DC; font-size: 8pt; padding-left: 5px; }}
+    QLabel#Brand {{
+        background: transparent; color: #FFFFFF;
+        font-size: 17pt; font-weight: 700; padding: 8px 4px 18px;
+    }}
+    QLabel#BrandSub {{
+        background: transparent; color: #D7E1EF; font-size: 8pt; padding-left: 5px;
+    }}
     QPushButton#NavButton {{
         color: {c['sidebar_text']}; background: transparent; border: none;
         border-radius: 9px; text-align: left; padding: 12px 14px; font-weight: 600;
@@ -69,9 +88,29 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QLabel#MetricValue {{ color: {c['text']}; font-size: 23pt; font-weight: 700; }}
     QLabel#MetricCaption {{ color: {c['muted']}; font-size: 9pt; }}
     QLabel#CompareScore {{ color: #4D8DF0; font-size: 17pt; font-weight: 700; }}
-    QFrame#Panel, QFrame#MetricCard {{
+    QFrame#Panel, QFrame#MetricCard, QFrame#DetailsSection {{
         background: {c['panel']}; border: 1px solid {c['border']}; border-radius: 13px;
     }}
+    QFrame#ContestCard {{
+        background: {c['panel']}; color: {c['text']};
+        border: 1px solid {c['border']}; border-radius: 11px;
+    }}
+    QFrame#ContestCard:hover {{
+        background: {c['card_hover']}; border: 1px solid #4D8DF0;
+    }}
+    QLabel#ContestCardTitle {{ background: transparent; color: {c['text']}; font-weight: 700; font-size: 10pt; }}
+    QLabel#ContestCardDescription {{ background: transparent; color: {c['muted']}; font-size: 8pt; }}
+    QLabel#ContestCardMeta {{ background: transparent; color: {c['muted']}; font-size: 8pt; }}
+    QLabel#ContestCardStatus {{
+        background: {c['chip_bg']}; color: {c['chip_text']};
+        border: 1px solid {c['border']}; border-radius: 8px;
+        padding: 2px 8px; font-size: 8pt; font-weight: 700;
+    }}
+    QLabel#DetailsTitle {{ color: {c['text']}; font-size: 19pt; font-weight: 700; }}
+    QLabel#SectionTitle {{ color: {c['text']}; font-size: 11pt; font-weight: 700; }}
+    QLabel#DetailCaption {{ color: {c['muted']}; font-size: 9pt; font-weight: 600; }}
+    QLabel#DetailValue {{ color: {c['text']}; font-size: 9pt; }}
+    QLabel#DisciplineTitle {{ color: {c['text']}; font-size: 10pt; font-weight: 700; padding-top: 4px; }}
     QPushButton {{
         background: {c['secondary']}; color: {c['text']}; border: 1px solid {c['border']};
         border-radius: 8px; padding: 8px 13px; font-weight: 600;
@@ -94,6 +133,10 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDateEdit:focus,
     QTextEdit:focus, QPlainTextEdit:focus {{ border: 1px solid #4D8DF0; }}
     QComboBox::drop-down {{ border: none; width: 25px; }}
+    QComboBox QAbstractItemView {{
+        background: {c['panel']}; color: {c['text']};
+        selection-background-color: {c['selection']}; selection-color: {c['selection_text']};
+    }}
     QTableWidget, QTreeWidget, QListWidget {{
         background: {c['panel']}; color: {c['text']};
         alternate-background-color: {c['background']}; border: 1px solid {c['border']};
@@ -107,9 +150,14 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QListWidget::item, QTreeWidget::item {{ padding: 7px; }}
     QCheckBox {{ color: {c['text']}; spacing: 8px; }}
     QCheckBox::indicator {{ width: 17px; height: 17px; }}
+    QScrollArea, QScrollArea > QWidget, QScrollArea > QWidget > QWidget {{
+        background: transparent; border: none;
+    }}
     QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
     QScrollBar::handle:vertical {{ background: {c['muted']}; border-radius: 4px; min-height: 25px; }}
-    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{ height: 0; }}
+    QScrollBar:horizontal {{ background: transparent; height: 10px; margin: 2px; }}
+    QScrollBar::handle:horizontal {{ background: {c['muted']}; border-radius: 4px; min-width: 25px; }}
+    QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; }}
     QToolTip {{ background: #0D1B32; color: #FFFFFF; border: 1px solid #42536B; padding: 6px; }}
     QToolBar {{
         background: {c['panel']}; color: {c['text']}; border: none;
