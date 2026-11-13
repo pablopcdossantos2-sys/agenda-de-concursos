@@ -4,9 +4,11 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
 
+from agenda.services.dates import format_date_pt_br
+
 
 class ContestCard(QFrame):
-    """Card compacto, clicável e com textos limitados ao espaço disponível."""
+    """Card clicável com hierarquia visual e textos ajustados ao espaço."""
 
     clicked = Signal(int)
 
@@ -14,6 +16,7 @@ class ContestCard(QFrame):
         super().__init__(parent)
         self.contest_id = int(contest["id"])
         self.compact = compact
+        self._contest = dict(contest)
         self.setObjectName("ContestCard")
         self.setProperty("compact", "true" if compact else "false")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -22,36 +25,35 @@ class ContestCard(QFrame):
         self.setToolTip("Clique para abrir a ficha completa deste concurso.")
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 9, 12, 9)
+        layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(3)
 
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(8)
         self.title_label = QLabel()
         self.title_label.setObjectName("ContestCardTitle")
         self.title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(self.title_label)
-
-        self.description_label = QLabel()
-        self.description_label.setObjectName("ContestCardDescription")
-        self.description_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        layout.addWidget(self.description_label)
-
-        footer = QHBoxLayout()
-        footer.setContentsMargins(0, 1, 0, 0)
-        footer.setSpacing(8)
-
-        self.date_label = QLabel()
-        self.date_label.setObjectName("ContestCardMeta")
-        self.date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        footer.addWidget(self.date_label, 1)
+        title_row.addWidget(self.title_label, 1)
 
         self.status_label = QLabel()
         self.status_label.setObjectName("ContestCardStatus")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.status_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        footer.addWidget(self.status_label, 0, Qt.AlignmentFlag.AlignRight)
-        layout.addLayout(footer)
+        title_row.addWidget(self.status_label, 0, Qt.AlignmentFlag.AlignRight)
+        layout.addLayout(title_row)
 
-        self._contest = dict(contest)
+        self.description_label = QLabel()
+        self.description_label.setObjectName("ContestCardDescription")
+        self.description_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.description_label.setWordWrap(False)
+        layout.addWidget(self.description_label)
+
+        self.date_label = QLabel()
+        self.date_label.setObjectName("ContestCardMeta")
+        self.date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.date_label.setWordWrap(False)
+        layout.addWidget(self.date_label)
         self._update_text()
 
     @staticmethod
@@ -59,67 +61,65 @@ class ContestCard(QFrame):
         start = contest.get("inscricoes_inicio") or ""
         end = contest.get("inscricoes_fim") or ""
         exam = contest.get("data_prova") or ""
-        predicted = contest.get("data_prevista") or ""
         if exam:
-            event = f"Prova: {exam}"
-        elif predicted:
-            event = f"Previsão: {predicted}"
+            event = f"Prova: {format_date_pt_br(exam)}"
         else:
-            event = "Data ainda não informada"
+            event = "Data da prova não informada"
         if start or end:
-            registration = f"Inscrições: {start or '—'} a {end or '—'}"
-            return f"{event} · {registration}"
+            registration = (
+                f"Inscrições: {format_date_pt_br(start) if start else '—'} "
+                f"a {format_date_pt_br(end) if end else '—'}"
+            )
+            return f"{event}  |  {registration}"
         return event
 
-    def _update_text(self) -> None:
+    def _description(self) -> str:
         contest = self._contest
-        name = str(contest.get("nome") or "Concurso sem nome")
-        organ = str(contest.get("orgao") or "Órgão não informado")
-        role = str(contest.get("cargo") or "")
-        bank = str(contest.get("banca") or "")
-        locality = str(contest.get("localidade") or "")
-        description_parts = [organ]
-        if role:
-            description_parts.append(role)
-        if bank:
-            description_parts.append(f"Banca: {bank}")
-        if locality and not self.compact:
-            description_parts.append(locality)
+        parts = []
+        organ = str(contest.get("orgao") or "").strip()
+        if organ:
+            parts.append(organ)
 
+        cargos = contest.get("cargos") or []
+        roles = [str(item.get("nome") or "").strip() for item in cargos if item.get("nome")]
+        legacy_role = str(contest.get("cargo") or "").strip()
+        role = ", ".join(roles[:2]) if roles else legacy_role
+        if role:
+            parts.append(role if len(roles) <= 2 else f"{role} e outros {len(roles) - 2}")
+
+        bank = str(contest.get("banca") or "").strip()
+        if bank:
+            parts.append(f"Banca: {bank}")
+        return "  •  ".join(parts) or "Órgão e cargo não informados"
+
+    def _update_text(self) -> None:
+        name = str(self._contest.get("nome") or "Concurso sem nome")
         self.title_label.setText(name)
-        self.description_label.setText(" · ".join(description_parts))
-        self.date_label.setText(self._date_label(contest))
-        status = str(contest.get("status") or "Sem Previsão")
-        self.status_label.setText(status)
-        self.setToolTip(
-            f"{name}\n{organ}\n{role}\n{bank}\n{locality}\n"
-            f"{self._date_label(contest)}\nSituação: {status}"
+        self.status_label.setText(str(self._contest.get("status") or "Sem Previsão"))
+        self.description_label.setText(self._description())
+        self.date_label.setText(self._date_label(self._contest))
+        cargo_tooltip = "\n".join(
+            f"{item.get('nome', '')} — {item.get('salario_inicial') or 'Remuneração não informada'}"
+            for item in (self._contest.get("cargos") or [])
         )
-        if self.compact:
-            self.setFixedHeight(78)
-        else:
-            self.setMinimumHeight(94)
-            self.setMaximumHeight(112)
+        self.setToolTip(
+            f"{name}\n{self._description()}\n{self._date_label(self._contest)}\n"
+            f"{'Cargos e salários:\\n' + cargo_tooltip if cargo_tooltip else ''}\n"
+            "Clique para abrir a ficha completa."
+        )
+        self.setFixedHeight(88 if self.compact else 104)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
-        metrics = QFontMetrics(self.title_label.font())
         self.title_label.setText(
-            metrics.elidedText(str(self._contest.get("nome") or "Concurso sem nome"),
-                               Qt.TextElideMode.ElideRight, max(20, self.title_label.width()))
+            QFontMetrics(self.title_label.font()).elidedText(
+                str(self._contest.get("nome") or "Concurso sem nome"),
+                Qt.TextElideMode.ElideRight, max(20, self.title_label.width())
+            )
         )
-        full_description = " · ".join(
-            item for item in [
-                str(self._contest.get("orgao") or "Órgão não informado"),
-                str(self._contest.get("cargo") or ""),
-                f"Banca: {self._contest.get('banca')}" if self._contest.get("banca") else "",
-                str(self._contest.get("localidade") or "") if not self.compact else "",
-            ] if item
-        )
-        self.description_label.setToolTip(full_description)
         self.description_label.setText(
             QFontMetrics(self.description_label.font()).elidedText(
-                full_description, Qt.TextElideMode.ElideRight,
+                self._description(), Qt.TextElideMode.ElideRight,
                 max(20, self.description_label.width())
             )
         )
