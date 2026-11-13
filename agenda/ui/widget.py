@@ -123,7 +123,7 @@ class DesktopWidget(QWidget):
             text = f"{contest.get('nome', 'Concurso')}\n{date_label}  •  {status}"
             item = QListWidgetItem(text)
             item.setToolTip(f"{contest.get('orgao','')} — {contest.get('cargo','')}")
-            item.setSizeHint(item.sizeHint() + QSize(0, 14))
+            item.setSizeHint(QSize(340, 56))
             self.items.addItem(item)
         if not visible:
             self.items.addItem(QListWidgetItem("Nenhum concurso com data cadastrada."))
