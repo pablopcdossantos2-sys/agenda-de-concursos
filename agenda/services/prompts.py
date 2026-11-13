@@ -31,7 +31,7 @@ def build_extraction_prompt(profile: dict[str, Any] | None = None) -> str:
         profile_rules.append(f"- Observações adicionais do perfil: {notes}")
     profile_text = "\n".join(profile_rules)
 
-    return f"""Você é um assistente especializado em leitura e extração de informações de editais de concursos públicos e processos seletivos.
+    template = """Você é um assistente especializado em leitura e extração de informações de editais de concursos públicos e processos seletivos.
 
 Analise cuidadosamente todos os PDFs, páginas, imagens e anexos fornecidos. Extraia somente informações que estejam expressamente presentes nas fontes. Não invente, não complete por suposição e não transforme estimativas em datas confirmadas. Quando uma informação não estiver disponível ou não puder ser lida, use texto vazio ("").
 
@@ -52,7 +52,7 @@ REGRAS DE EXTRAÇÃO
 12. Defina prioridade como false. O usuário poderá alterá-la depois.
 13. Não inclua dados pessoais de candidatos, números de documentos, endereços residenciais, telefones ou outras informações privadas encontradas incidentalmente no documento.
 
-{profile_text}
+__PROFILE_RULES__
 
 FORMATO OBRIGATÓRIO
 Retorne apenas um objeto JSON válido, sem introdução, sem comentários e sem blocos Markdown. Não retorne código Python, comandos, funções ou texto a ser executado. Use exatamente a estrutura abaixo e não acrescente chaves não previstas:
@@ -104,6 +104,7 @@ Retorne apenas um objeto JSON válido, sem introdução, sem comentários e sem 
 Se um dado não estiver disponível, mantenha o campo textual com "" (string vazia). Se não houver cargos compatíveis com o perfil, use "cargos": []. Se não houver conteúdo programático aplicável aos cargos selecionados, use "disciplinas": []. Inclua somente cargos que efetivamente atendam ao perfil. Não omita schema_version, concurso ou qualquer campo mostrado no exemplo.
 
 Antes de responder, confira se o JSON é sintaticamente válido, se todas as datas preenchidas estão no formato AAAA-MM-DD, se o nome do concurso não está vazio e se cada cargo, disciplina e tópico tem nome. Não inclua explicações fora do JSON."""
+    return template.replace("__PROFILE_RULES__", profile_text)
 
 
 PROMPT_EXTRACAO_CONCURSO = build_extraction_prompt()
