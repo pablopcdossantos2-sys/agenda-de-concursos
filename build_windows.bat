@@ -11,7 +11,7 @@ py -m pip install pyinstaller
 if errorlevel 1 goto :error
 
 echo [3/3] Gerando distribuicao portatil...
-pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir main.py
+pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir --add-data "assets;assets" main.py
 if errorlevel 1 goto :error
 
 echo.
