@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
     QLabel, QLineEdit, QMessageBox, QTextEdit, QVBoxLayout, QWidget, QPushButton
 )
 from PySide6.QtCore import Qt
-from agenda.services.dates import format_date_pt_br, parse_user_date
+from agenda.services.dates import format_date_input, parse_user_date
 from agenda.ui.cargo_dialogs import CargoManagerDialog
 
 
@@ -43,7 +43,7 @@ class ContestDialog(QDialog):
         ]
         for key, label, required in definitions:
             stored = str(data.get(key) or "")
-            edit = QLineEdit(format_date_pt_br(stored) if key in ("inscricoes_inicio", "inscricoes_fim", "data_prova") and stored else stored)
+            edit = QLineEdit(format_date_input(stored) if key in ("inscricoes_inicio", "inscricoes_fim", "data_prova") and stored else stored)
             edit.setPlaceholderText("Obrigatório" if required else "Não informado")
             self.fields[key] = edit
             form.addRow(label, edit)
