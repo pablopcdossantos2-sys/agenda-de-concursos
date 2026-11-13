@@ -30,6 +30,7 @@ class DatabaseTests(unittest.TestCase):
                 "cargos_desejados": ["Médico"],
                 "observacoes": "CRM ativo",
             })
+            self.assertEqual(db.list_contests("Médico")[0]["id"], contest_id)
             self.assertEqual(len(db.get_program(contest_id)), 1)
             self.assertEqual(len(db.get_program(contest_id)[0]["topicos"]), 1)
 
