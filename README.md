@@ -12,6 +12,10 @@ Aplicativo desktop portátil para Windows, desenvolvido em Python, para organiza
 - Widget de área de trabalho com quantidade de itens configurável.
 - Opção para iniciar com o Windows, sem serviço ou registro permanente: o aplicativo cria um script na pasta Inicializar do usuário.
 - Banco SQLite local e exportação/importação de backup JSON.
+- Ícone próprio do aplicativo na barra de título, na barra de ferramentas e no ícone da janela do Windows.
+- Tema claro (padrão) e tema escuro, com paletas e textos de alto contraste; a escolha é persistida localmente.
+- Cadastro de uma ficha completa por JSON, incluindo disciplinas e tópicos, além do formulário convencional.
+- Seção **Prompts** com prompt pronto para extrair informações de editais em PDF ou imagens e devolver JSON compatível com o sistema.
 - Funciona offline para as funcionalidades locais.
 
 ## Requisitos
@@ -45,7 +49,7 @@ A compilação recomendada é no modo **onedir**, e não onefile: o executável 
 ~~~powershell
 py -m pip install -r requirements.txt
 py -m pip install pyinstaller
-pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir main.py
+pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir --add-data "assets;assets" main.py
 ~~~
 
 Copie a pasta dist/Agenda de Concursos para o local desejado. Extraia-a em uma pasta na qual o usuário tenha permissão de escrita (evite diretórios protegidos do Windows). Na primeira execução, o aplicativo cria data/agenda.db. Mantenha a pasta data junto do programa ao movê-lo para outro computador. Se a inicialização automática estiver habilitada, desabilite-a antes de mover a pasta e habilite novamente depois, pois o script da pasta Inicializar aponta para o caminho atual do executável.
@@ -70,8 +74,12 @@ O relatório mostra a cobertura por disciplina e os tópicos correspondentes. Re
 - main.py: ponto de entrada.
 - agenda/database.py: persistência SQLite e backup.
 - agenda/services/similarity.py: comparação dos conteúdos.
+- agenda/services/contest_payload.py: validação do formato JSON de cadastro.
+- agenda/services/prompts.py: prompt de extração de dados dos editais.
 - agenda/startup.py: integração opcional com a pasta Inicializar do Windows.
-- agenda/ui/: janela principal, diálogos, tema e widget.
+- agenda/ui/: janela principal, diálogos, temas, identidade visual, importação por JSON e widget.
+- assets/app_icon.svg: ícone vetorial próprio do aplicativo.
+- docs/IMPORTACAO_JSON_E_PROMPTS.md: guia de uso da seção Prompts e da importação por JSON.
 - tests/: testes automatizados.
 
 ## Estado do projeto
