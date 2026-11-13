@@ -3,7 +3,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import Qt, QSize, QPoint
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFrame, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget, QPushButton
 
 
@@ -21,6 +22,8 @@ class DesktopWidget(QWidget):
         super().__init__(parent, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.database = database
         self.item_limit = int(database.get_setting("widget_items", "5") or 5)
+        self._drag_offset: QPoint | None = None
+        self._positioned = False
         self.setWindowTitle("Agenda de Concursos")
         self.setMinimumWidth(320)
         self.setMaximumWidth(390)
@@ -59,6 +62,33 @@ class DesktopWidget(QWidget):
         footer.addWidget(close)
         root.addLayout(footer)
         self.refresh()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if not self._positioned:
+            screen = self.screen() or QGuiApplication.primaryScreen()
+            if screen is not None:
+                area = screen.availableGeometry()
+                self.move(area.right() - self.width() - 22, area.top() + 22)
+            self._positioned = True
+
+    def mousePressEvent(self, event) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:
+        if self._drag_offset is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_offset)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:
+        self._drag_offset = None
+        super().mouseReleaseEvent(event)
 
     def set_item_limit(self, limit: int) -> None:
         self.item_limit = max(1, min(20, int(limit)))
