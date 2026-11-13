@@ -4,7 +4,9 @@ from datetime import date
 from typing import Any
 
 from PySide6.QtCore import Qt, QSize, QPoint
-from PySide6.QtGui import QGuiApplication, QColor
+from PySide6.QtGui import QGuiApplication, QColor, QIcon
+
+from agenda.ui.assets import asset_path
 from PySide6.QtWidgets import QFrame, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget, QPushButton
 
 
@@ -25,20 +27,10 @@ class DesktopWidget(QWidget):
         self._drag_offset: QPoint | None = None
         self._positioned = False
         self.setWindowTitle("Agenda de Concursos")
+        self.setWindowIcon(QIcon(str(asset_path("app_icon.svg"))))
+        self.apply_theme(database.get_setting("theme", "claro"))
         self.setMinimumWidth(320)
         self.setMaximumWidth(390)
-        self.setStyleSheet("""
-            QWidget { background:#17243A; color:#F4F7FC; font-family:'Segoe UI'; }
-            QFrame#Card { background:#22344F; border:1px solid #314764; border-radius:10px; }
-            QLabel#Title { color:#FFFFFF; font-size:12pt; font-weight:700; }
-            QLabel#Sub { color:#A9B8CD; font-size:8pt; }
-            QLabel#Contest { color:#F7F9FC; font-weight:600; }
-            QLabel#Date { color:#B9C8DA; font-size:8pt; }
-            QPushButton { background:#2B4161; border:0; color:#EAF1FA; padding:5px 9px; border-radius:6px; }
-            QPushButton:hover { background:#3A567D; }
-            QListWidget { border:0; background:transparent; }
-            QListWidget::item { border:0; padding:3px; }
-        """)
         root = QVBoxLayout(self)
         root.setContentsMargins(15, 13, 15, 13)
         top = QVBoxLayout()
@@ -62,6 +54,34 @@ class DesktopWidget(QWidget):
         footer.addWidget(close)
         root.addLayout(footer)
         self.refresh()
+
+    def apply_theme(self, theme: str) -> None:
+        self.theme = theme if theme in ("claro", "escuro") else "claro"
+        if self.theme == "escuro":
+            colors = {
+                "background": "#101C30", "card": "#1B2B43", "border": "#3B5270",
+                "text": "#F5F8FC", "muted": "#C7D3E1", "button": "#344A68",
+                "button_hover": "#425D81",
+            }
+        else:
+            colors = {
+                "background": "#F4F7FC", "card": "#FFFFFF", "border": "#D4DEEA",
+                "text": "#182437", "muted": "#53647A", "button": "#E8EEF6",
+                "button_hover": "#D8E4F2",
+            }
+        self.setStyleSheet(f"""
+            QWidget {{ background:{colors['background']}; color:{colors['text']}; font-family:'Segoe UI'; }}
+            QFrame#Card {{ background:{colors['card']}; border:1px solid {colors['border']}; border-radius:10px; }}
+            QLabel#Title {{ color:{colors['text']}; font-size:12pt; font-weight:700; }}
+            QLabel#Sub {{ color:{colors['muted']}; font-size:8pt; }}
+            QLabel#Contest {{ color:{colors['text']}; font-weight:600; }}
+            QLabel#Date {{ color:{colors['muted']}; font-size:8pt; }}
+            QPushButton {{ background:{colors['button']}; border:1px solid {colors['border']}; color:{colors['text']}; padding:6px 10px; border-radius:6px; }}
+            QPushButton:hover {{ background:{colors['button_hover']}; }}
+            QListWidget {{ border:0; background:transparent; color:{colors['text']}; }}
+            QListWidget::item {{ border:0; padding:3px; }}
+            QToolTip {{ background:#0D1B32; color:#FFFFFF; border:1px solid #42536B; padding:6px; }}
+        """)
 
     def showEvent(self, event) -> None:
         super().showEvent(event)
@@ -94,6 +114,19 @@ class DesktopWidget(QWidget):
         self.item_limit = max(1, min(20, int(limit)))
         self.refresh()
 
+    def _status_color(self, status: str) -> str:
+        if self.theme == "escuro":
+            return {
+                "Previsto": "#F6CD83",
+                "Edital publicado": "#9BE2BE",
+                "Sem Previsão": "#D0D9E5",
+            }.get(status, "#F5F8FC")
+        return {
+            "Previsto": "#925100",
+            "Edital publicado": "#116B4A",
+            "Sem Previsão": "#516174",
+        }.get(status, "#182437")
+
     def refresh(self) -> None:
         self.items.clear()
         contests = self.database.list_contests()
@@ -123,12 +156,7 @@ class DesktopWidget(QWidget):
             status = contest.get("status") or "Sem Previsão"
             text = f"{contest.get('nome', 'Concurso')}\n{date_label}  •  {status}"
             item = QListWidgetItem(text)
-            status_colors = {
-                "Previsto": "#F2C078",
-                "Edital publicado": "#86D6B0",
-                "Sem Previsão": "#C0CDDE",
-            }
-            item.setForeground(QColor(status_colors.get(status, "#E7EDF5")))
+            item.setForeground(QColor(self._status_color(status)))
             item.setToolTip(f"{contest.get('orgao','')} — {contest.get('cargo','')}")
             item.setSizeHint(QSize(340, 56))
             self.items.addItem(item)
