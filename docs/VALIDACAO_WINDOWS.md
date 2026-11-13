@@ -41,14 +41,30 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 5. Confira a pontuação, os pares sugeridos e os tópicos exclusivos.
 6. Confirme que a tela explica que o resultado é uma estimativa e exige revisão humana.
 
-## 5. Widget
+## 5. Agenda de datas e ficha completa
+
+1. Cadastre concursos com e sem datas, incluindo ao menos um concurso com inscrições, data de prova, banca, links e conteúdo programático.
+2. Na tela **Visão geral**, confirme que todos os concursos cadastrados são apresentados em cards, inclusive os que não possuem previsão.
+3. Clique em cada card e confira se a janela de detalhes apresenta órgão, cargo, banca, localidade, situação, prioridade, datas, links, observações, disciplinas, tópicos e registro de criação/atualização.
+4. Feche a ficha e confirme que a tela principal continua responsiva.
+
+## 6. Widget
 
 1. Abra **Mostrar widget**.
-2. Confirme que a janela compacta lista eventos com data de hoje ou futura e, depois deles, concursos sem data cadastrada, preservando suas etiquetas de situação.
-3. Altere a quantidade de itens nas Configurações e salve.
-4. Oculte e mostre novamente o widget.
-5. Com outras janelas abertas, confira se o widget permanece acessível e se não impede o uso do desktop.
-6. Verifique posicionamento, legibilidade e escala em diferentes resoluções e fatores de escala do Windows.
+2. Confirme que a janela apresenta cards, em vez de linhas de texto simples, para os concursos com data futura ou sem data.
+3. Confira se nomes longos, cargos, órgãos, datas e situação permanecem contidos nos cards, sem barras de rolagem horizontal ou vertical; textos truncados devem continuar disponíveis na dica de ferramenta.
+4. Em **Configurações**, altere a quantidade de cards, a largura (320–700 px) e a altura (300–900 px), salve e confirme que o widget assume as dimensões escolhidas.
+5. Aumente a altura e verifique que mais cards passam a caber integralmente; reduza-a e confirme que o widget informa quantos itens não estão visíveis, sem criar barras de rolagem.
+6. Feche e abra novamente o aplicativo; confirme que quantidade, largura e altura permanecem salvas.
+7. Verifique posicionamento, legibilidade e escala em diferentes resoluções e fatores de escala do Windows.
+
+## 7. Temas, contraste e superfícies
+
+1. Teste o **Modo claro** e o **Modo escuro**.
+2. Em ambos, confirme a legibilidade do título “Agenda”, do texto de versão no rodapé da barra lateral, dos títulos dos painéis, dos botões, dos campos, das tabelas, dos cards e da janela de detalhes.
+3. Verifique que rótulos dentro de painéis não exibem retângulos com cores de fundo diferentes da superfície do painel.
+4. Confirme que a tabela de concursos, os diálogos, o widget e a barra de ferramentas seguem o tema selecionado.
+5. Verifique o contraste com escala de tela de 100%, 125% e 150%.
 
 ## 6. Inicialização automática
 
@@ -67,13 +83,13 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 5. Execute a cópia e confirme que o banco de dados usado é o que está na pasta data da cópia.
 6. Nunca apague o banco original antes de confirmar que o backup pode ser importado.
 
-## 8. Gerar a distribuição
+## 9. Gerar a distribuição
 
 Na pasta do projeto, execute:
 
 ~~~powershell
 py -m pip install pyinstaller
-pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir main.py
+pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir --add-data "assets;assets" main.py
 ~~~
 
 Copie a pasta dist\Agenda de Concursos para outro local. Execute o aplicativo nessa pasta e repita os testes de cadastro, widget, inicialização e backup.
