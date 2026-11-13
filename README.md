@@ -5,18 +5,20 @@ Aplicativo desktop portátil para Windows, desenvolvido em Python, para organiza
 ## Funcionalidades
 
 - Cadastro de concursos em qualquer fase: **Sem Previsão**, **Previsto** ou **Edital publicado**.
-- Fichas com órgão, cargo, banca, localidade, datas, links e observações.
+- Fichas com órgão, banca, localidade, datas, links e observações.
+- Cadastro de vários cargos por concurso, cada um com escolaridade, requisitos, remuneração inicial/final, benefícios, jornada, vagas e lotação.
+- Seção **Perfil** para selecionar níveis de escolaridade, profissões e requisitos adicionais desejados.
+- Seção **Prompts** que gera instruções de extração personalizadas pelo perfil salvo, para filtrar cargos de editais em PDF ou imagens.
+- Cadastro por formulário convencional ou por JSON validado, incluindo cargos, salários, disciplinas e tópicos.
+- Datas apresentadas em português por extenso; os campos editáveis aceitam DD/MM/AAAA e o banco mantém ISO AAAA-MM-DD.
 - Cadastro individual de disciplinas e tópicos de cada concurso.
-- Campo de padronização opcional para associar tópicos equivalentes com nomes diferentes.
 - Comparação explicável de dois conteúdos programáticos, por disciplina e por tópico.
-- Widget de área de trabalho redesenhado com cards, textos ajustados ao espaço e sem barras de rolagem; quantidade, largura e altura configuráveis.
-- Seção **Agenda de datas** em cards clicáveis, com abertura da ficha completa e do conteúdo programático.
+- Widget flutuante de área de trabalho com cards, cantos arredondados e borda; quantidade, largura e altura configuráveis, sem botão interno ou barras de rolagem.
+- Mostrar/ocultar widget pela barra de ferramentas da janela principal ou pelo menu do ícone na área de notificação do Windows.
+- Ícone próprio do aplicativo, incluindo a bandeja do sistema.
+- Tema claro (padrão) e tema escuro, com paletas e textos de alto contraste.
 - Opção para iniciar com o Windows, sem serviço ou registro permanente: o aplicativo cria um script na pasta Inicializar do usuário.
-- Banco SQLite local e exportação/importação de backup JSON.
-- Ícone próprio do aplicativo na barra de título, na barra de ferramentas e no ícone da janela do Windows.
-- Tema claro (padrão) e tema escuro, com paletas e textos de alto contraste; a escolha é persistida localmente.
-- Cadastro de uma ficha completa por JSON, incluindo disciplinas e tópicos, além do formulário convencional.
-- Seção **Prompts** com prompt pronto para extrair informações de editais em PDF ou imagens e devolver JSON compatível com o sistema.
+- Banco SQLite local e exportação/importação de backup JSON, incluindo perfil e cargos.
 - Funciona offline para as funcionalidades locais.
 
 ## Requisitos
@@ -53,11 +55,11 @@ py -m pip install pyinstaller
 pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir --add-data "assets;assets" main.py
 ~~~
 
-Copie a pasta dist/Agenda de Concursos para o local desejado. Extraia-a em uma pasta na qual o usuário tenha permissão de escrita (evite diretórios protegidos do Windows). Na primeira execução, o aplicativo cria data/agenda.db. Mantenha a pasta data junto do programa ao movê-lo para outro computador. Se a inicialização automática estiver habilitada, desabilite-a antes de mover a pasta e habilite novamente depois, pois o script da pasta Inicializar aponta para o caminho atual do executável.
+Copie a pasta dist/Agenda de Concursos para o local desejado. Extraia-a em uma pasta na qual o usuário tenha permissão de escrita (evite diretórios protegidos do Windows). Na primeira execução, o aplicativo cria data/agenda.db. Mantenha a pasta data junto do programa ao movê-lo para outro computador. Com a bandeja do sistema disponível, fechar a janela principal a minimiza para a área de notificação; use o menu do ícone para mostrar/ocultar o widget ou sair do aplicativo.
 
 ## Dados e privacidade
 
-Os dados são armazenados localmente em SQLite. O aplicativo não envia fichas ou conteúdos para servidores. Faça backups periódicos pelo menu **Configurações**. O backup JSON contém fichas, disciplinas, tópicos e preferências do aplicativo.
+Os dados são armazenados localmente em SQLite. O aplicativo não envia fichas, perfis ou conteúdos para servidores. Faça backups periódicos pelo menu **Configurações**. O backup JSON contém fichas, cargos, disciplinas, tópicos e preferências do aplicativo.
 
 A opção de inicialização do Windows grava/remover um script .vbs na pasta Inicializar do usuário atual. Ela não altera serviços ou chaves de registro.
 
@@ -73,16 +75,18 @@ O relatório mostra a cobertura por disciplina e os tópicos correspondentes. Re
 ## Estrutura
 
 - main.py: ponto de entrada.
-- agenda/database.py: persistência SQLite e backup.
-- agenda/services/similarity.py: comparação dos conteúdos.
+- agenda/database.py: persistência SQLite, perfil, cargos e backup.
+- agenda/services/dates.py: normalização e apresentação das datas.
+- agenda/services/profile.py: normalização do perfil.
 - agenda/services/contest_payload.py: validação do formato JSON de cadastro.
-- agenda/services/prompts.py: prompt de extração de dados dos editais.
+- agenda/services/prompts.py: prompt de extração personalizado.
+- agenda/services/similarity.py: comparação dos conteúdos.
 - agenda/startup.py: integração opcional com a pasta Inicializar do Windows.
-- agenda/ui/: janela principal, cards clicáveis, ficha detalhada, diálogos, temas, identidade visual, importação por JSON e widget.
+- agenda/ui/: janela principal, perfil, cards clicáveis, ficha detalhada, gestão de cargos, temas, importação por JSON e widget.
 - assets/app_icon.svg: ícone vetorial próprio do aplicativo.
-- docs/IMPORTACAO_JSON_E_PROMPTS.md: guia de uso da seção Prompts e da importação por JSON.
+- docs/IMPORTACAO_JSON_E_PROMPTS.md: guia de perfil, seção Prompts e importação.
 - tests/: testes automatizados.
 
 ## Estado do projeto
 
-Primeira versão funcional em desenvolvimento. O comportamento de janela-widget, inicialização e empacotamento precisa ser validado em Windows real antes de ser considerado pronto para distribuição.
+Versão funcional em desenvolvimento. O comportamento de janela-widget, bandeja, inicialização e empacotamento deve continuar sendo validado em Windows real antes de uma distribuição ampla.
