@@ -9,16 +9,18 @@ from PySide6.QtGui import QAction, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QSpinBox,
-    QStackedWidget, QTableWidget, QTableWidgetItem, QToolBar, QTreeWidget,
-    QTreeWidgetItem, QVBoxLayout, QWidget
+    QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QScrollArea,
+    QSpinBox, QStackedWidget, QTableWidget, QTableWidgetItem, QToolBar,
+    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 )
 
 from agenda.database import Database
 from agenda.services.similarity import compare_programs
 from agenda.startup import disable_startup, enable_startup, startup_enabled
 from agenda.ui.assets import asset_path
+from agenda.ui.cards import ContestCard
 from agenda.ui.code_dialogs import ContestCodeDialog, PromptDialog
+from agenda.ui.details_dialog import ContestDetailsDialog
 from agenda.ui.dialogs import ContestDialog, NameDialog, TopicDialog
 from agenda.ui.styles import theme_stylesheet
 from agenda.ui.widget import DesktopWidget
@@ -32,6 +34,7 @@ class MainWindow(QMainWindow):
         if self.theme not in ("claro", "escuro"):
             self.theme = "claro"
         self.desktop_widget = DesktopWidget(database)
+        self.desktop_widget.contest_selected.connect(self._open_contest_details)
         self.setWindowTitle("Agenda de Concursos")
         self.setWindowIcon(QIcon(str(asset_path("app_icon.svg"))))
         self.resize(1280, 820)
@@ -78,6 +81,7 @@ class MainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         root = QWidget()
+        root.setObjectName("CentralRoot")
         self.setCentralWidget(root)
         outer = QHBoxLayout(root)
         outer.setContentsMargins(0, 0, 0, 0)
@@ -201,10 +205,18 @@ class MainWindow(QMainWindow):
         subtitle = QLabel("Provas e previsões cadastradas, em ordem cronológica.")
         subtitle.setObjectName("MutedText")
         panel_layout.addWidget(subtitle)
-        self.dashboard_list = QListWidget()
-        self.dashboard_list.setAlternatingRowColors(True)
-        self.dashboard_list.setMinimumHeight(260)
-        panel_layout.addWidget(self.dashboard_list)
+        self.dashboard_scroll = QScrollArea()
+        self.dashboard_scroll.setWidgetResizable(True)
+        self.dashboard_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.dashboard_scroll.setMinimumHeight(260)
+        self.dashboard_cards_host = QWidget()
+        self.dashboard_cards_host.setObjectName("DashboardCardsHost")
+        self.dashboard_cards_layout = QVBoxLayout(self.dashboard_cards_host)
+        self.dashboard_cards_layout.setContentsMargins(2, 2, 8, 2)
+        self.dashboard_cards_layout.setSpacing(8)
+        self.dashboard_cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self.dashboard_scroll.setWidget(self.dashboard_cards_host)
+        panel_layout.addWidget(self.dashboard_scroll, 1)
         layout.addWidget(panel, 1)
 
         actions = QHBoxLayout()
@@ -387,8 +399,30 @@ class MainWindow(QMainWindow):
         self.widget_count.setRange(1, 20)
         self.widget_count.setValue(max(1, min(20, int(self.database.get_setting("widget_items", "5") or 5))))
         row.addWidget(self.widget_count)
+        row.addSpacing(16)
+
+        row.addWidget(QLabel("Largura do widget (px):"))
+        self.widget_width = QSpinBox()
+        self.widget_width.setRange(320, 700)
+        self.widget_width.setSingleStep(10)
+        self.widget_width.setValue(max(320, min(700, int(self.database.get_setting("widget_width", "390") or 390))))
+        row.addWidget(self.widget_width)
+
+        row.addWidget(QLabel("Altura (px):"))
+        self.widget_height = QSpinBox()
+        self.widget_height.setRange(300, 900)
+        self.widget_height.setSingleStep(10)
+        self.widget_height.setValue(max(300, min(900, int(self.database.get_setting("widget_height", "470") or 470))))
+        row.addWidget(self.widget_height)
         row.addStretch()
         general_layout.addLayout(row)
+        dimensions_hint = QLabel(
+            "A quantidade de cards visíveis se ajusta à altura escolhida. "
+            "O widget não exibe barras de rolagem; aumente a altura para mostrar mais concursos."
+        )
+        dimensions_hint.setWordWrap(True)
+        dimensions_hint.setObjectName("HintText")
+        general_layout.addWidget(dimensions_hint)
         save = QPushButton("Salvar preferências")
         save.setObjectName("PrimaryButton")
         save.clicked.connect(self._save_settings)
@@ -487,26 +521,39 @@ class MainWindow(QMainWindow):
         self._refresh_dashboard()
         self.desktop_widget.refresh()
 
+    def _clear_dashboard_cards(self) -> None:
+        while self.dashboard_cards_layout.count():
+            item = self.dashboard_cards_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
     def _refresh_dashboard(self) -> None:
         contests = self.database.list_contests()
         self.metric_total.setText(str(len(contests)))
         self.metric_edital.setText(str(sum(item.get("status") == "Edital publicado" for item in contests)))
         self.metric_predicted.setText(str(sum(item.get("status") == "Previsto" for item in contests)))
         self.metric_no_date.setText(str(sum(item.get("status") == "Sem Previsão" for item in contests)))
-        self.dashboard_list.clear()
-        today = date.today().isoformat()
-        dated = []
-        for item in contests:
-            event_date = item.get("data_prova") or item.get("data_prevista")
-            if event_date and event_date >= today:
-                dated.append((event_date, item))
-        for event_date, item in sorted(dated)[:12]:
-            label = f"{event_date}   •   {item.get('nome', '')}   •   {item.get('status', '')}"
-            row = QListWidgetItem(label)
-            row.setData(Qt.ItemDataRole.UserRole, item["id"])
-            self.dashboard_list.addItem(row)
-        if not dated:
-            self.dashboard_list.addItem("Nenhuma prova ou previsão futura cadastrada. Adicione datas às suas fichas.")
+        self._clear_dashboard_cards()
+
+        for contest in contests:
+            card = ContestCard(contest, compact=False, parent=self.dashboard_cards_host)
+            card.clicked.connect(self._open_contest_details)
+            self.dashboard_cards_layout.addWidget(card)
+
+        if not contests:
+            empty = QLabel("Nenhum concurso cadastrado. Use “Cadastrar concurso” para adicionar o primeiro.")
+            empty.setObjectName("MutedText")
+            empty.setWordWrap(True)
+            self.dashboard_cards_layout.addWidget(empty)
+
+    def _open_contest_details(self, contest_id: int) -> None:
+        contest = self.database.get_contest(int(contest_id))
+        if contest is None:
+            QMessageBox.information(self, "Ficha não encontrada", "O concurso pode ter sido removido.")
+            return
+        program = self.database.get_program(int(contest_id))
+        ContestDetailsDialog(contest, program, self).exec()
 
     def _refresh_contest_table(self) -> None:
         if not hasattr(self, "contest_table"):
@@ -771,9 +818,14 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Inicialização do Windows", str(error))
             return
         count = self.widget_count.value()
+        width = self.widget_width.value()
+        height = self.widget_height.value()
         self.database.set_setting("widget_items", str(count))
+        self.database.set_setting("widget_width", str(width))
+        self.database.set_setting("widget_height", str(height))
         self.database.set_setting("widget_auto_show", "1" if self.auto_widget_check.isChecked() else "0")
         self.desktop_widget.set_item_limit(count)
+        self.desktop_widget.set_dimensions(width, height)
         QMessageBox.information(self, "Preferências salvas", "As configurações foram atualizadas.")
 
     def _export_backup(self) -> None:
