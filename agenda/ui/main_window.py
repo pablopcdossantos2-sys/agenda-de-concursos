@@ -577,14 +577,19 @@ class MainWindow(QMainWindow):
                 item = QTableWidgetItem(str(value or "—"))
                 item.setData(Qt.ItemDataRole.UserRole, contest["id"])
                 if column == 3:
-                    colors = {
-                        "Sem Previsão": ("#EEF1F5", "#526174"),
-                        "Previsto": ("#FFF2D9", "#9A5B00"),
-                        "Edital publicado": ("#E2F5EC", "#176B4B"),
-                    }
-                    background, foreground = colors.get(str(value), ("#EEF1F5", "#526174"))
-                    item.setBackground(QColor(background))
-                    item.setForeground(QColor(foreground))
+                    if self.theme == "escuro":
+                        colors = {
+                            "Sem Previsão": "#C0CBD8",
+                            "Previsto": "#F6CD83",
+                            "Edital publicado": "#9BE2BE",
+                        }
+                    else:
+                        colors = {
+                            "Sem Previsão": "#53647A",
+                            "Previsto": "#925100",
+                            "Edital publicado": "#116B4A",
+                        }
+                    item.setForeground(QColor(colors.get(str(value), "#53647A")))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.contest_table.setItem(row_index, column, item)
 
