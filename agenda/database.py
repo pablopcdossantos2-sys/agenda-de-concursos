@@ -118,8 +118,12 @@ class Database:
                 rows = db.execute(
                     """SELECT * FROM concursos
                        WHERE nome LIKE ? OR orgao LIKE ? OR cargo LIKE ? OR banca LIKE ?
+                          OR EXISTS (
+                              SELECT 1 FROM cargos
+                              WHERE cargos.concurso_id = concursos.id AND cargos.nome LIKE ?
+                          )
                        ORDER BY COALESCE(data_prova, '9999-12-31'), nome""",
-                    (term, term, term, term),
+                    (term, term, term, term, term),
                 ).fetchall()
             else:
                 rows = db.execute(
