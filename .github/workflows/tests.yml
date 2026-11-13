@@ -46,6 +46,10 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Smoke import graphical interface
         run: python -c "from agenda.ui.main_window import MainWindow; from agenda.ui.widget import DesktopWidget"
+      - name: Smoke initialize graphical interface
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -c "import tempfile; from pathlib import Path; from PySide6.QtWidgets import QApplication; from agenda.database import Database; from agenda.ui.main_window import MainWindow; app = QApplication([]); folder = Path(tempfile.mkdtemp()); window = MainWindow(Database(folder / 'test.db')); window.show(); app.processEvents(); window.close(); app.quit()"
       - name: Install PyInstaller
         run: python -m pip install pyinstaller
       - name: Build portable application
