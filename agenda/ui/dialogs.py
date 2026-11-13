@@ -21,7 +21,7 @@ class ContestDialog(QDialog):
         layout = QVBoxLayout(self)
         intro = QLabel("Cadastre o processo seletivo mesmo antes da publicação do edital.")
         intro.setWordWrap(True)
-        intro.setStyleSheet("color:#68788F; padding: 2px 0 8px;")
+        intro.setObjectName("MutedText")
         layout.addWidget(intro)
 
         form = QFormLayout()
@@ -66,7 +66,7 @@ class ContestDialog(QDialog):
         layout.addLayout(form)
 
         hint = QLabel("As datas são opcionais. Use o formato AAAA-MM-DD para facilitar a ordenação.")
-        hint.setStyleSheet("color:#7B8798; font-size:8pt;")
+        hint.setObjectName("HintText")
         layout.addWidget(hint)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._validate)
@@ -123,7 +123,7 @@ class TopicDialog(QDialog):
             "o comparador reconhecerá a correspondência explicitamente."
         )
         note.setWordWrap(True)
-        note.setStyleSheet("color:#68788F; font-size:8pt;")
+        note.setObjectName("HintText")
         layout.addWidget(note)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._validate)
