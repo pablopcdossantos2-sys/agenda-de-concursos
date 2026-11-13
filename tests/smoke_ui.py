@@ -71,6 +71,7 @@ def main() -> None:
         )
         assert detail.windowTitle().startswith("Ficha completa")
         assert detail.cargos and detail.cargos[0]["nome"] == "Médico"
+        assert detail._normalized_url("www.example.org/edital").scheme() == "https"
         assert "Médico" in build_extraction_prompt(database.get_user_profile())
         assert window.profile_level_checks["Superior"].isChecked()
         detail.show()
