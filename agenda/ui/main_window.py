@@ -248,10 +248,13 @@ class MainWindow(QMainWindow):
         add_discipline = QPushButton("+ Disciplina")
         add_discipline.setObjectName("PrimaryButton")
         add_discipline.clicked.connect(self._add_discipline)
+        rename_discipline = QPushButton("Renomear")
+        rename_discipline.clicked.connect(self._rename_discipline)
         remove_discipline = QPushButton("Remover")
         remove_discipline.setObjectName("DangerButton")
         remove_discipline.clicked.connect(self._delete_discipline)
         discipline_buttons.addWidget(add_discipline)
+        discipline_buttons.addWidget(rename_discipline)
         discipline_buttons.addWidget(remove_discipline)
         disciplines_layout.addLayout(discipline_buttons)
         columns.addWidget(disciplines_panel, 1)
@@ -564,6 +567,17 @@ class MainWindow(QMainWindow):
         dialog = NameDialog("Nova disciplina", "Nome da disciplina:", self)
         if dialog.exec() and dialog.value():
             self.database.add_discipline(int(contest_id), dialog.value())
+            self._load_content()
+
+    def _rename_discipline(self) -> None:
+        discipline_id = self._selected_discipline_id()
+        selected = self.discipline_list.currentItem()
+        if discipline_id is None or selected is None:
+            QMessageBox.information(self, "Selecione uma disciplina", "Escolha uma disciplina para renomear.")
+            return
+        dialog = NameDialog("Renomear disciplina", "Novo nome:", self, selected.text())
+        if dialog.exec() and dialog.value():
+            self.database.rename_discipline(discipline_id, dialog.value())
             self._load_content()
 
     def _delete_discipline(self) -> None:
