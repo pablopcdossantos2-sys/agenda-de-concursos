@@ -3,46 +3,43 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
-    QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QVBoxLayout, QWidget,
+    QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QMessageBox,
+    QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
+from agenda.services.dates import format_date_pt_br, format_datetime_pt_br
+from agenda.ui.cargo_dialogs import CargoManagerDialog
 
-FIELD_LABELS = (
+
+GENERAL_FIELDS = (
     ("orgao", "Órgão / instituição"),
-    ("cargo", "Cargo / especialidade"),
+    ("cargo", "Cargo / especialidade (campo legado)"),
     ("banca", "Banca organizadora"),
     ("localidade", "Localidade"),
-    ("status", "Situação"),
     ("prioridade", "Prioridade"),
-    ("inscricoes_inicio", "Início das inscrições"),
-    ("inscricoes_fim", "Fim das inscrições"),
-    ("data_prova", "Data da prova"),
-    ("data_prevista", "Data prevista"),
-    ("url_edital", "Link do edital"),
-    ("url_oficial", "Site oficial"),
-    ("created_at", "Ficha criada em"),
-    ("updated_at", "Última atualização"),
 )
 
 
 class ContestDetailsDialog(QDialog):
-    """Apresenta todos os dados da ficha e o conteúdo programático."""
+    """Apresenta os dados gerais, cargos, fontes e conteúdo programático."""
 
     def __init__(
         self,
         contest: dict[str, Any],
         program: list[dict[str, Any]] | None = None,
         parent: QWidget | None = None,
+        database=None,
     ):
         super().__init__(parent)
         self.contest = dict(contest)
         self.program = program or []
+        self.database = database
+        self.cargos = database.list_cargos(int(contest["id"])) if database else list(contest.get("cargos") or [])
         self.setWindowTitle(f"Ficha completa — {self.contest.get('nome', 'Concurso')}")
         self.setMinimumSize(650, 520)
-        self.resize(790, 720)
+        self.resize(790, 760)
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(16, 14, 16, 14)
@@ -69,11 +66,7 @@ class ContestDetailsDialog(QDialog):
         status.setMaximumWidth(190)
         body.addWidget(status, 0, Qt.AlignmentFlag.AlignLeft)
 
-        main_fields = [(key, label) for key, label in FIELD_LABELS
-                       if key not in ("status", "inscricoes_inicio", "inscricoes_fim", "data_prova",
-                                      "data_prevista", "url_edital", "url_oficial",
-                                      "created_at", "updated_at")]
-        self._add_field_section(body, "Informações gerais", main_fields)
+        self._add_field_section(body, "Informações gerais", list(GENERAL_FIELDS))
         self._add_field_section(
             body,
             "Calendário",
@@ -81,10 +74,10 @@ class ContestDetailsDialog(QDialog):
                 ("inscricoes_inicio", "Início das inscrições"),
                 ("inscricoes_fim", "Fim das inscrições"),
                 ("data_prova", "Data da prova"),
-                ("data_prevista", "Data prevista"),
             ],
         )
         self._add_link_section(body)
+        self._add_cargos_section(body)
         self._add_observations(body)
         self._add_program_section(body)
         self._add_field_section(
@@ -110,6 +103,10 @@ class ContestDetailsDialog(QDialog):
             return "Sim" if bool(value) else "Não"
         if value is None or str(value).strip() == "":
             return "Não informado"
+        if key in ("inscricoes_inicio", "inscricoes_fim", "data_prova"):
+            return format_date_pt_br(str(value))
+        if key in ("created_at", "updated_at"):
+            return format_datetime_pt_br(str(value))
         return str(value)
 
     def _section(self, title: str, parent_layout: QVBoxLayout) -> tuple[QFrame, QVBoxLayout]:
@@ -144,42 +141,187 @@ class ContestDetailsDialog(QDialog):
             grid.addWidget(value, row, 1)
         layout.addLayout(grid)
 
+    @staticmethod
+    def _normalized_url(address: str) -> QUrl | None:
+        clean = (address or "").strip()
+        if not clean:
+            return None
+        url = QUrl.fromUserInput(clean)
+        if not url.isValid() or url.scheme().lower() not in ("http", "https") or not url.host():
+            return None
+        return url
+
+    def _open_link(self, address: str) -> None:
+        url = self._normalized_url(address)
+        if url is None:
+            QMessageBox.warning(
+                self, "Link inválido",
+                "O endereço salvo não é um link HTTP/HTTPS válido. Confira a URL na ficha do concurso.",
+            )
+            return
+        opened = QDesktopServices.openUrl(url)
+        if not opened:
+            QGuiApplication.clipboard().setText(url.toString())
+            QMessageBox.warning(
+                self, "Não foi possível abrir o link",
+                "O Windows não conseguiu abrir o endereço. O link foi copiado para a área de transferência.",
+            )
+
     def _add_link_section(self, parent_layout: QVBoxLayout) -> None:
         links = [
             ("url_edital", "Abrir edital"),
             ("url_oficial", "Abrir site oficial"),
         ]
-        available = [(key, label, str(self.contest.get(key) or "").strip())
-                     for key, label in links if str(self.contest.get(key) or "").strip()]
-        if not available:
-            self._add_field_section(parent_layout, "Links e fontes", links)
-            return
         _, layout = self._section("Links e fontes", parent_layout)
-        for key, label, url in available:
+        available = [
+            (key, label, str(self.contest.get(key) or "").strip())
+            for key, label in links if str(self.contest.get(key) or "").strip()
+        ]
+        if not available:
+            label = QLabel("Nenhum link de edital ou site oficial foi cadastrado.")
+            label.setObjectName("DetailCaption")
+            layout.addWidget(label)
+            return
+
+        for key, label, address in available:
             row = QHBoxLayout()
-            value = QLabel(url)
+            value = QLabel(address)
             value.setObjectName("DetailValue")
             value.setWordWrap(True)
             value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             row.addWidget(value, 1)
             button = QPushButton(label)
-            button.clicked.connect(lambda checked=False, address=url: QDesktopServices.openUrl(QUrl(address)))
+            button.setObjectName("PrimaryButton")
+            button.clicked.connect(lambda checked=False, target=address: self._open_link(target))
             row.addWidget(button)
             layout.addLayout(row)
-        for key, label in links:
-            if not str(self.contest.get(key) or "").strip():
-                value = QLabel(f"{label}: Não informado")
-                value.setObjectName("DetailCaption")
-                layout.addWidget(value)
+
+    def _add_cargos_section(self, parent_layout: QVBoxLayout) -> None:
+        _, layout = self._section("Cargos e salários", parent_layout)
+        heading_row = QHBoxLayout()
+        self.cargos_count = QLabel("")
+        self.cargos_count.setObjectName("DetailCaption")
+        heading_row.addWidget(self.cargos_count, 1)
+        if self.database is not None:
+            manage = QPushButton("Gerenciar cargos e salários")
+            manage.clicked.connect(self._manage_cargos)
+            heading_row.addWidget(manage)
+        layout.addLayout(heading_row)
+        self.cargos_content_layout = QVBoxLayout()
+        self.cargos_content_layout.setSpacing(8)
+        layout.addLayout(self.cargos_content_layout)
+        self._refresh_cargos()
+
+    def _refresh_cargos(self) -> None:
+        while self.cargos_content_layout.count():
+            item = self.cargos_content_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.cargos_count.setText(f"{len(self.cargos)} cargo(s) registrado(s)")
+        if not self.cargos:
+            empty = QLabel("Nenhum cargo ou faixa salarial cadastrada. Edite a ficha para incluir essas informações.")
+            empty.setObjectName("DetailCaption")
+            empty.setWordWrap(True)
+            self.cargos_content_layout.addWidget(empty)
+            return
+
+        for cargo in self.cargos:
+            card = QFrame()
+            card.setObjectName("CargoDetailCard")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(11, 9, 11, 9)
+            card_layout.setSpacing(5)
+
+            title = QLabel(str(cargo.get("nome") or "Cargo sem nome"))
+            title.setObjectName("DisciplineTitle")
+            title.setWordWrap(True)
+            card_layout.addWidget(title)
+
+            meta = []
+            for field in ("nivel_escolaridade", "vagas", "jornada", "localidade"):
+                value = str(cargo.get(field) or "").strip()
+                if value:
+                    meta.append(value)
+            meta_label = QLabel(" · ".join(meta) if meta else "Escolaridade, vagas e jornada não informadas")
+            meta_label.setObjectName("DetailCaption")
+            meta_label.setWordWrap(True)
+            card_layout.addWidget(meta_label)
+
+            salary = str(cargo.get("salario_inicial") or "").strip()
+            salary_final = str(cargo.get("salario_final") or "").strip()
+            if salary or salary_final:
+                salary_text = "Remuneração: " + (salary or "não informada")
+                if salary_final:
+                    salary_text += f" até {salary_final}"
+            else:
+                salary_text = "Remuneração não informada"
+            if cargo.get("beneficios"):
+                salary_text += f" · Benefícios: {cargo['beneficios']}"
+            salary_label = QLabel(salary_text)
+            salary_label.setObjectName("DetailValue")
+            salary_label.setWordWrap(True)
+            card_layout.addWidget(salary_label)
+
+            for label, key in (
+                ("Requisitos", "requisitos"),
+                ("Observações", "observacoes"),
+            ):
+                value = str(cargo.get(key) or "").strip()
+                if value:
+                    field = QLabel(f"{label}: {value}")
+                    field.setObjectName("DetailValue")
+                    field.setWordWrap(True)
+                    card_layout.addWidget(field)
+            self.cargos_content_layout.addWidget(card)
+
+    def _manage_cargos(self) -> None:
+        if self.database is None:
+            return
+        contest_id = int(self.contest["id"])
+        dialog = CargoManagerDialog(self.database.list_cargos(contest_id), self)
+        if dialog.exec():
+            try:
+                self.database.replace_cargos(contest_id, dialog.cargos())
+                self.cargos = self.database.list_cargos(contest_id)
+                self._refresh_cargos()
+            except Exception as error:
+                QMessageBox.critical(self, "Não foi possível salvar os cargos", str(error))
 
     def _add_observations(self, parent_layout: QVBoxLayout) -> None:
         notes = str(self.contest.get("observacoes") or "").strip()
         _, layout = self._section("Observações", parent_layout)
-        value = QLabel(notes or "Nenhuma observação registrada.")
-        value.setObjectName("DetailValue")
-        value.setWordWrap(True)
-        value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        layout.addWidget(value)
+        if not notes:
+            empty = QLabel("Nenhuma observação registrada.")
+            empty.setObjectName("DetailCaption")
+            layout.addWidget(empty)
+            return
+
+        blocks = [line.strip() for line in notes.replace("\r\n", "\n").split("\n") if line.strip()]
+        for line in blocks:
+            card = QFrame()
+            card.setObjectName("ObservationItem")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(10, 7, 10, 7)
+            card_layout.setSpacing(2)
+            clean = line.lstrip("-• ").strip()
+            if ":" in clean and len(clean.split(":", 1)[0]) <= 45:
+                label_text, detail_text = clean.split(":", 1)
+                label = QLabel(label_text.strip())
+                label.setObjectName("DetailCaption")
+                value = QLabel(detail_text.strip())
+                value.setObjectName("DetailValue")
+                value.setWordWrap(True)
+                value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                card_layout.addWidget(label)
+                card_layout.addWidget(value)
+            else:
+                value = QLabel(clean)
+                value.setObjectName("DetailValue")
+                value.setWordWrap(True)
+                value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+                card_layout.addWidget(value)
+            layout.addWidget(card)
 
     def _add_program_section(self, parent_layout: QVBoxLayout) -> None:
         _, layout = self._section("Conteúdo programático", parent_layout)
