@@ -121,6 +121,8 @@ class Database:
         values = {field: data.get(field) for field in CONTEST_FIELDS}
         values["nome"] = nome
         values["status"] = values.get("status") or "Sem Previsão"
+        for field in ("orgao", "cargo", "banca", "localidade", "url_edital", "url_oficial", "observacoes"):
+            values[field] = values.get(field) or ""
         values["prioridade"] = int(values.get("prioridade") or 0)
         now = datetime.now().isoformat(timespec="seconds")
         with self._connect() as db:
