@@ -9,7 +9,8 @@ Aplicativo desktop portátil para Windows, desenvolvido em Python, para organiza
 - Cadastro individual de disciplinas e tópicos de cada concurso.
 - Campo de padronização opcional para associar tópicos equivalentes com nomes diferentes.
 - Comparação explicável de dois conteúdos programáticos, por disciplina e por tópico.
-- Widget de área de trabalho com quantidade de itens configurável.
+- Widget de área de trabalho redesenhado com cards, textos ajustados ao espaço e sem barras de rolagem; quantidade, largura e altura configuráveis.
+- Seção **Agenda de datas** em cards clicáveis, com abertura da ficha completa e do conteúdo programático.
 - Opção para iniciar com o Windows, sem serviço ou registro permanente: o aplicativo cria um script na pasta Inicializar do usuário.
 - Banco SQLite local e exportação/importação de backup JSON.
 - Ícone próprio do aplicativo na barra de título, na barra de ferramentas e no ícone da janela do Windows.
@@ -77,7 +78,7 @@ O relatório mostra a cobertura por disciplina e os tópicos correspondentes. Re
 - agenda/services/contest_payload.py: validação do formato JSON de cadastro.
 - agenda/services/prompts.py: prompt de extração de dados dos editais.
 - agenda/startup.py: integração opcional com a pasta Inicializar do Windows.
-- agenda/ui/: janela principal, diálogos, temas, identidade visual, importação por JSON e widget.
+- agenda/ui/: janela principal, cards clicáveis, ficha detalhada, diálogos, temas, identidade visual, importação por JSON e widget.
 - assets/app_icon.svg: ícone vetorial próprio do aplicativo.
 - docs/IMPORTACAO_JSON_E_PROMPTS.md: guia de uso da seção Prompts e da importação por JSON.
 - tests/: testes automatizados.
