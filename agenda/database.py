@@ -124,7 +124,7 @@ class Database:
             else:
                 rows = db.execute(
                     """SELECT * FROM concursos
-                       ORDER BY COALESCE(data_prova, data_prevista, '9999-12-31'), nome"""
+                       ORDER BY COALESCE(data_prova, '9999-12-31'), nome"""
                 ).fetchall()
             return [dict(row) for row in rows]
 
