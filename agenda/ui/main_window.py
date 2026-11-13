@@ -78,7 +78,7 @@ class MainWindow(QMainWindow):
         version.setObjectName("BrandSub")
         version.setWordWrap(True)
         side.addWidget(version)
-        outer.addWidget(side)
+        outer.addWidget(sidebar)
 
         main = QWidget()
         main_layout = QVBoxLayout(main)
