@@ -45,6 +45,17 @@ def format_date_pt_br(value: str | None) -> str:
     return f"{parsed.day} de {MONTHS[parsed.month - 1]} de {parsed.year}"
 
 
+def format_date_input(value: str | None) -> str:
+    clean = str(value or "").strip()
+    if not clean:
+        return ""
+    try:
+        parsed = date.fromisoformat(clean)
+        return parsed.strftime("%d/%m/%Y")
+    except ValueError:
+        return clean
+
+
 def format_datetime_pt_br(value: str | None) -> str:
     clean = str(value or "").strip()
     if not clean:
