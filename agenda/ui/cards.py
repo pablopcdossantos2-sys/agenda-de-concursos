@@ -102,11 +102,15 @@ class ContestCard(QFrame):
             f"{item.get('nome', '')} — {item.get('salario_inicial') or 'Remuneração não informada'}"
             for item in (self._contest.get("cargos") or [])
         )
-        self.setToolTip(
-            f"{name}\n{self._description()}\n{self._date_label(self._contest)}\n"
-            f"{'Cargos e salários:\\n' + cargo_tooltip if cargo_tooltip else ''}\n"
-            "Clique para abrir a ficha completa."
-        )
+        cargo_section = f"Cargos e salários:\n{cargo_tooltip}" if cargo_tooltip else ""
+        tooltip_parts = [
+            name,
+            self._description(),
+            self._date_label(self._contest),
+            cargo_section,
+            "Clique para abrir a ficha completa.",
+        ]
+        self.setToolTip("\n".join(part for part in tooltip_parts if part))
         self.setFixedHeight(88 if self.compact else 104)
 
     def resizeEvent(self, event) -> None:
