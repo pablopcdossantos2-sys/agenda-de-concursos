@@ -1,3 +1,4 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -14,9 +15,9 @@ class PortablePathTests(unittest.TestCase):
             with patch("agenda.paths.sys.frozen", True, create=True), patch(
                 "agenda.paths.sys.executable", str(executable)
             ):
-                self.assertEqual(app_root(), executable.parent)
+                self.assertTrue(os.path.samefile(app_root(), executable.parent))
                 data_dir = app_data_dir()
-                self.assertEqual(data_dir, executable.parent / "data")
+                self.assertTrue(os.path.samefile(data_dir, executable.parent / "data"))
                 self.assertTrue(data_dir.is_dir())
 
     def test_source_root_is_repository_directory(self):
