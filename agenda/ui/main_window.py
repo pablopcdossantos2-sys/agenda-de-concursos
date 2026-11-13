@@ -710,7 +710,9 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Ficha não encontrada", "O concurso pode ter sido removido.")
             return
         program = self.database.get_program(int(contest_id))
-        ContestDetailsDialog(contest, program, self, database=self.database).exec()
+        dialog = ContestDetailsDialog(contest, program, self, database=self.database)
+        dialog.exec()
+        self._refresh_all()
 
     def _refresh_contest_table(self) -> None:
         if not hasattr(self, "contest_table"):
