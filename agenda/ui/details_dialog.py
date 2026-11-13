@@ -70,7 +70,7 @@ class ContestDetailsDialog(QDialog):
         body.addWidget(status, 0, Qt.AlignmentFlag.AlignLeft)
 
         main_fields = [(key, label) for key, label in FIELD_LABELS
-                       if key not in ("inscricoes_inicio", "inscricoes_fim", "data_prova",
+                       if key not in ("status", "inscricoes_inicio", "inscricoes_fim", "data_prova",
                                       "data_prevista", "url_edital", "url_oficial",
                                       "created_at", "updated_at")]
         self._add_field_section(body, "Informações gerais", main_fields)
