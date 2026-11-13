@@ -693,6 +693,7 @@ class MainWindow(QMainWindow):
         self._clear_dashboard_cards()
 
         for contest in contests:
+            contest["cargos"] = self.database.list_cargos(int(contest["id"]))
             card = ContestCard(contest, compact=False, parent=self.dashboard_cards_host)
             card.clicked.connect(self._open_contest_details)
             self.dashboard_cards_layout.addWidget(card)
@@ -720,10 +721,17 @@ class MainWindow(QMainWindow):
             row_index = self.contest_table.rowCount()
             self.contest_table.insertRow(row_index)
             event_date = format_date_pt_br(contest.get("data_prova")) if contest.get("data_prova") else "—"
+            cargo_rows = self.database.list_cargos(int(contest["id"]))
+            cargo_names = [str(item.get("nome") or "").strip() for item in cargo_rows if item.get("nome")]
+            cargo_summary = ", ".join(cargo_names[:2])
+            if len(cargo_names) > 2:
+                cargo_summary += f" e outros {len(cargo_names) - 2}"
+            if not cargo_summary:
+                cargo_summary = contest.get("cargo", "")
             values = [
                 contest.get("nome", ""),
                 contest.get("orgao", ""),
-                contest.get("cargo", ""),
+                cargo_summary,
                 contest.get("status", ""),
                 event_date,
                 contest.get("banca", ""),
