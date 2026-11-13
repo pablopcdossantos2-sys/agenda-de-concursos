@@ -1,4 +1,4 @@
-name: tests
+name: tests-and-build
 
 on:
   push:
@@ -32,3 +32,26 @@ jobs:
         run: python -m compileall -q agenda main.py tests
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+
+  windows-portable-build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install application dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Install PyInstaller
+        run: python -m pip install pyinstaller
+      - name: Build portable application
+        run: pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir main.py
+      - name: Upload portable build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Agenda-de-Concursos-Windows-x64
+          path: dist/Agenda de Concursos/
+          if-no-files-found: error
+          retention-days: 14
