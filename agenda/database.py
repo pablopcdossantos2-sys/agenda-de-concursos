@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
 
+from agenda.services.contest_payload import normalize_contest_payload
+
 
 CONTEST_FIELDS = (
     "nome", "orgao", "cargo", "banca", "localidade", "status",
@@ -140,6 +142,49 @@ class Database:
                 [values.get(field) for field in CONTEST_FIELDS] + [now, contest_id],
             )
             return contest_id
+
+    def add_contest_payload(self, payload: dict[str, Any]) -> int:
+        """Cria concurso, disciplinas e tópicos numa única transação SQLite."""
+        normalized = normalize_contest_payload(payload)
+        contest = dict(normalized["concurso"])
+        disciplines = contest.pop("disciplinas", [])
+        values = {field: contest.get(field) for field in CONTEST_FIELDS}
+        values["nome"] = str(values.get("nome") or "").strip()
+        values["status"] = values.get("status") or "Sem Previsão"
+        for field in ("orgao", "cargo", "banca", "localidade", "url_edital", "url_oficial", "observacoes"):
+            values[field] = values.get(field) or ""
+        for field in ("inscricoes_inicio", "inscricoes_fim", "data_prova", "data_prevista"):
+            values[field] = values.get(field) or None
+        values["prioridade"] = int(values.get("prioridade") or 0)
+        now = datetime.now().isoformat(timespec="seconds")
+
+        with self._connect() as db:
+            columns = list(CONTEST_FIELDS) + ["created_at", "updated_at"]
+            placeholders = ", ".join("?" for _ in columns)
+            cursor = db.execute(
+                f"INSERT INTO concursos ({', '.join(columns)}) VALUES ({placeholders})",
+                [values.get(field) for field in CONTEST_FIELDS] + [now, now],
+            )
+            contest_id = int(cursor.lastrowid)
+
+            for discipline_order, discipline in enumerate(disciplines):
+                discipline_cursor = db.execute(
+                    "INSERT INTO disciplinas (concurso_id, nome, ordem) VALUES (?, ?, ?)",
+                    (contest_id, discipline["nome"], discipline_order),
+                )
+                discipline_id = int(discipline_cursor.lastrowid)
+                for topic_order, topic in enumerate(discipline["topicos"]):
+                    db.execute(
+                        """INSERT INTO topicos (disciplina_id, nome, nome_padronizado, ordem)
+                           VALUES (?, ?, ?, ?)""",
+                        (
+                            discipline_id,
+                            topic["nome"],
+                            topic.get("nome_padronizado", ""),
+                            topic_order,
+                        ),
+                    )
+        return contest_id
 
     def delete_contest(self, contest_id: int) -> None:
         with self._connect() as db:
