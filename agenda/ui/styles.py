@@ -106,6 +106,9 @@ def theme_stylesheet(theme: str = "claro") -> str:
         border: 1px solid {c['border']}; border-radius: 8px;
         padding: 2px 8px; font-size: 8pt; font-weight: 700;
     }}
+    QFrame#CargoDetailCard, QFrame#ObservationItem {{
+        background: {c['secondary']}; border: 1px solid {c['border']}; border-radius: 9px;
+    }}
     QLabel#DetailsTitle {{ color: {c['text']}; font-size: 19pt; font-weight: 700; }}
     QLabel#SectionTitle {{ color: {c['text']}; font-size: 11pt; font-weight: 700; }}
     QLabel#DetailCaption {{ color: {c['muted']}; font-size: 9pt; font-weight: 600; }}
