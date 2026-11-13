@@ -14,6 +14,20 @@ VALID_PAYLOAD = {
         "status": "Edital publicado",
         "data_prova": "2027-05-10",
         "prioridade": False,
+        "cargos": [
+            {
+                "nome": "Médico",
+                "nivel_escolaridade": "Superior",
+                "requisitos": "Graduação em Medicina e CRM",
+                "salario_inicial": "R$ 12.000,00",
+                "salario_final": "",
+                "beneficios": "Auxílio alimentação",
+                "jornada": "20 horas semanais",
+                "vagas": "3",
+                "localidade": "Palmas",
+                "observacoes": "Remuneração proporcional à jornada"
+            }
+        ],
         "disciplinas": [
             {
                 "nome": "Direito Constitucional",
@@ -32,6 +46,9 @@ class ContestPayloadTests(unittest.TestCase):
         contest = result["concurso"]
         self.assertEqual(contest["nome"], "Concurso de exemplo")
         self.assertEqual(contest["cargo"], "")
+        self.assertEqual(contest["cargos"][0]["nome"], "Médico")
+        self.assertEqual(contest["cargos"][0]["salario_inicial"], "R$ 12.000,00")
+        self.assertNotIn("data_prevista", contest)
         self.assertEqual(contest["disciplinas"][0]["topicos"][0]["nome"], "Direitos fundamentais")
 
     def test_rejects_invalid_date_status_and_unknown_fields(self):
@@ -69,6 +86,9 @@ class ContestPayloadTests(unittest.TestCase):
             program = database.get_program(contest_id)
             self.assertEqual(program[0]["nome"], "Direito Constitucional")
             self.assertEqual(program[0]["topicos"][0]["nome_padronizado"], "Direitos fundamentais")
+            cargos = database.list_cargos(contest_id)
+            self.assertEqual(cargos[0]["nome"], "Médico")
+            self.assertEqual(cargos[0]["salario_inicial"], "R$ 12.000,00")
 
 
 if __name__ == "__main__":
