@@ -48,7 +48,7 @@ py -m pip install pyinstaller
 pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir main.py
 ~~~
 
-Copie a pasta dist/Agenda de Concursos para o local desejado. Na primeira execução, o aplicativo cria data/agenda.db. Mantenha a pasta data junto do programa ao movê-lo para outro computador.
+Copie a pasta dist/Agenda de Concursos para o local desejado. Extraia-a em uma pasta na qual o usuário tenha permissão de escrita (evite diretórios protegidos do Windows). Na primeira execução, o aplicativo cria data/agenda.db. Mantenha a pasta data junto do programa ao movê-lo para outro computador. Se a inicialização automática estiver habilitada, desabilite-a antes de mover a pasta e habilite novamente depois, pois o script da pasta Inicializar aponta para o caminho atual do executável.
 
 ## Dados e privacidade
 
