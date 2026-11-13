@@ -14,10 +14,22 @@ class DatabaseTests(unittest.TestCase):
                 "nome": "Concurso de exemplo",
                 "orgao": "Órgão de teste",
                 "status": "Previsto",
-                "data_prevista": "2027-05-10",
+                "data_prova": "2027-05-10",
             })
             discipline_id = db.add_discipline(contest_id, "Direito Constitucional")
             db.add_topic(discipline_id, "Direitos fundamentais", "Direitos fundamentais")
+            db.replace_cargos(contest_id, [{
+                "nome": "Médico",
+                "nivel_escolaridade": "Superior",
+                "requisitos": "Graduação em Medicina e CRM",
+                "salario_inicial": "R$ 12.000,00",
+                "jornada": "20 horas",
+            }])
+            db.save_user_profile({
+                "niveis_escolaridade": ["Superior"],
+                "cargos_desejados": ["Médico"],
+                "observacoes": "CRM ativo",
+            })
             self.assertEqual(len(db.get_program(contest_id)), 1)
             self.assertEqual(len(db.get_program(contest_id)[0]["topicos"]), 1)
 
@@ -28,10 +40,17 @@ class DatabaseTests(unittest.TestCase):
             records = restored.list_contests()
             self.assertEqual(len(records), 1)
             self.assertEqual(records[0]["nome"], "Concurso de exemplo")
+            self.assertEqual(records[0]["data_prova"], "2027-05-10")
             self.assertEqual(
                 restored.get_program(contest_id)[0]["topicos"][0]["nome_padronizado"],
                 "Direitos fundamentais",
             )
+            restored_cargos = restored.list_cargos(contest_id)
+            self.assertEqual(restored_cargos[0]["nome"], "Médico")
+            self.assertEqual(restored_cargos[0]["salario_inicial"], "R$ 12.000,00")
+            self.assertEqual(restored.get_user_profile()["cargos_desejados"], ["Médico"])
+            exported = __import__("json").loads(backup.read_text(encoding="utf-8"))
+            self.assertNotIn("data_prevista", exported["concursos"][0])
 
     def test_delete_cascades_to_program_content(self):
         with tempfile.TemporaryDirectory() as directory:
