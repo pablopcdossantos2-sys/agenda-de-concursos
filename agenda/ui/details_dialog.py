@@ -146,7 +146,9 @@ class ContestDetailsDialog(QDialog):
         clean = (address or "").strip()
         if not clean:
             return None
-        url = QUrl.fromUserInput(clean)
+        if "://" not in clean:
+            clean = "https://" + clean
+        url = QUrl(clean)
         if not url.isValid() or url.scheme().lower() not in ("http", "https") or not url.host():
             return None
         return url
