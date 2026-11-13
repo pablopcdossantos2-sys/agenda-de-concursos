@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSize
 from PySide6.QtWidgets import QFrame, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget, QPushButton
 
 
@@ -67,7 +67,11 @@ class DesktopWidget(QWidget):
     def refresh(self) -> None:
         self.items.clear()
         contests = self.database.list_contests()
-        eligible = [item for item in contests if item.get("data_prova") or item.get("data_prevista")]
+        today_iso = date.today().isoformat()
+        eligible = [
+            item for item in contests
+            if (item.get("data_prova") or item.get("data_prevista") or "") >= today_iso
+        ]
         eligible.sort(key=lambda item: item.get("data_prova") or item.get("data_prevista") or "9999-12-31")
         visible = eligible[:self.item_limit]
         today = date.today()
@@ -89,7 +93,7 @@ class DesktopWidget(QWidget):
             text = f"{contest.get('nome', 'Concurso')}\n{date_label}  •  {status}"
             item = QListWidgetItem(text)
             item.setToolTip(f"{contest.get('orgao','')} — {contest.get('cargo','')}")
-            item.setSizeHint(item.sizeHint() + __import__("PySide6").QtCore.QSize(0, 14))
+            item.setSizeHint(item.sizeHint() + QSize(0, 14))
             self.items.addItem(item)
         if not visible:
             self.items.addItem(QListWidgetItem("Nenhum concurso com data cadastrada."))
