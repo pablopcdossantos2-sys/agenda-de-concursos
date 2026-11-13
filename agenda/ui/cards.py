@@ -108,7 +108,6 @@ class ContestCard(QFrame):
             metrics.elidedText(str(self._contest.get("nome") or "Concurso sem nome"),
                                Qt.TextElideMode.ElideRight, max(20, self.title_label.width()))
         )
-        description = self.description_label.toolTip()
         full_description = " · ".join(
             item for item in [
                 str(self._contest.get("orgao") or "Órgão não informado"),
