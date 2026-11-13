@@ -9,7 +9,8 @@ from PySide6.QtWidgets import (
 )
 
 from agenda.services.contest_payload import parse_contest_json
-from agenda.services.prompts import PROMPT_EXTRACAO_CONCURSO
+from agenda.services.prompts import build_extraction_prompt
+from agenda.services.profile import profile_summary
 
 
 SAMPLE_JSON = """{
@@ -24,11 +25,24 @@ SAMPLE_JSON = """{
     "inscricoes_inicio": "",
     "inscricoes_fim": "",
     "data_prova": "",
-    "data_prevista": "",
     "url_edital": "",
     "url_oficial": "",
     "observacoes": "",
     "prioridade": false,
+    "cargos": [
+      {
+        "nome": "Analista de exemplo",
+        "nivel_escolaridade": "Superior",
+        "requisitos": "Graduação compatível",
+        "salario_inicial": "R$ 5.000,00",
+        "salario_final": "",
+        "beneficios": "",
+        "jornada": "40 horas semanais",
+        "vagas": "1",
+        "localidade": "",
+        "observacoes": ""
+      }
+    ],
     "disciplinas": [
       {
         "nome": "Língua Portuguesa",
@@ -94,10 +108,11 @@ class ContestCodeDialog(QDialog):
         contest = payload["concurso"]
         discipline_count = len(contest["disciplinas"])
         topic_count = sum(len(item["topicos"]) for item in contest["disciplinas"])
+        cargo_count = len(contest["cargos"])
         self._payload = payload
         self.result_label.setText(
-            f"Ficha válida: {contest['nome']} · {discipline_count} disciplina(s) · "
-            f"{topic_count} tópico(s)."
+            f"Ficha válida: {contest['nome']} · {cargo_count} cargo(s) · "
+            f"{discipline_count} disciplina(s) · {topic_count} tópico(s)."
         )
         self.accept()
 
@@ -108,15 +123,17 @@ class ContestCodeDialog(QDialog):
 
 
 class PromptDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None):
+    def __init__(self, parent: QWidget | None = None, profile: dict[str, Any] | None = None):
         super().__init__(parent)
+        self.prompt = build_extraction_prompt(profile or {})
         self.setWindowTitle("Prompts — extração de informações de editais")
         self.setMinimumSize(760, 620)
 
         layout = QVBoxLayout(self)
         intro = QLabel(
             "Anexe o edital em PDF ou imagens à ferramenta de IA, cole o prompt abaixo "
-            "e solicite a extração. A IA deve devolver somente JSON compatível com o sistema."
+            "e solicite a extração. O prompt já considera o perfil salvo na seção Perfil.\n\n"
+            + profile_summary(profile or {})
         )
         intro.setObjectName("MutedText")
         intro.setWordWrap(True)
@@ -126,7 +143,7 @@ class PromptDialog(QDialog):
         self.editor.setObjectName("CodeEditor")
         self.editor.setReadOnly(True)
         self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.editor.setPlainText(PROMPT_EXTRACAO_CONCURSO)
+        self.editor.setPlainText(self.prompt)
         layout.addWidget(self.editor, 1)
 
         footer = QHBoxLayout()
@@ -141,5 +158,5 @@ class PromptDialog(QDialog):
         layout.addLayout(footer)
 
     def _copy_prompt(self) -> None:
-        QGuiApplication.clipboard().setText(PROMPT_EXTRACAO_CONCURSO)
+        QGuiApplication.clipboard().setText(self.prompt)
         QMessageBox.information(self, "Prompt copiado", "O prompt foi copiado para a área de transferência.")
