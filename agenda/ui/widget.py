@@ -79,7 +79,6 @@ class DesktopWidget(QWidget):
 
         self.refresh()
 
-    @staticmethod
     def _setting_int(self, key: str, default: int, minimum: int, maximum: int) -> int:
         try:
             value = int(self.database.get_setting(key, str(default)) or default)
