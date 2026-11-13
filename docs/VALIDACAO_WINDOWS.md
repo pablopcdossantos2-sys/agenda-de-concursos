@@ -66,7 +66,7 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 4. Confirme que a tabela de concursos, os diálogos, o widget e a barra de ferramentas seguem o tema selecionado.
 5. Verifique o contraste com escala de tela de 100%, 125% e 150%.
 
-## 6. Inicialização automática
+## 8. Inicialização automática
 
 1. Marque a opção de iniciar com o Windows e salve.
 2. Abra a pasta Inicializar do usuário: pressione Win+R, digite **shell:startup** e confirme.
@@ -74,7 +74,7 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 4. Reinicie a sessão ou o computador e confira se o aplicativo abre.
 5. Desmarque a opção e salve; confirme que o script foi removido.
 
-## 7. Backup e portabilidade
+## 9. Backup e portabilidade
 
 1. Exporte o backup JSON.
 2. Cadastre um dado de teste adicional.
@@ -83,7 +83,7 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 5. Execute a cópia e confirme que o banco de dados usado é o que está na pasta data da cópia.
 6. Nunca apague o banco original antes de confirmar que o backup pode ser importado.
 
-## 9. Gerar a distribuição
+## 10. Gerar a distribuição
 
 Na pasta do projeto, execute:
 
