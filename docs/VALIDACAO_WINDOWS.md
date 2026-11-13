@@ -44,7 +44,7 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 ## 5. Widget
 
 1. Abra **Mostrar widget**.
-2. Confirme que a janela compacta lista somente eventos com data de hoje ou futura.
+2. Confirme que a janela compacta lista eventos com data de hoje ou futura e, depois deles, concursos sem data cadastrada, preservando suas etiquetas de situação.
 3. Altere a quantidade de itens nas Configurações e salve.
 4. Oculte e mostre novamente o widget.
 5. Com outras janelas abertas, confira se o widget permanece acessível e se não impede o uso do desktop.
