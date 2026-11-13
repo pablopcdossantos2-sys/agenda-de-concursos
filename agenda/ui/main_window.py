@@ -4,20 +4,23 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import Qt, QSize
+from PySide6.QtGui import QAction, QColor, QIcon
 from PySide6.QtWidgets import (
-    QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame, QGridLayout,
-    QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMainWindow, QMessageBox, QPushButton, QSpinBox, QStackedWidget, QTableWidget,
-    QTableWidgetItem, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+    QApplication, QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame,
+    QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QSpinBox,
+    QStackedWidget, QTableWidget, QTableWidgetItem, QToolBar, QTreeWidget,
+    QTreeWidgetItem, QVBoxLayout, QWidget
 )
 
 from agenda.database import Database
 from agenda.services.similarity import compare_programs
 from agenda.startup import disable_startup, enable_startup, startup_enabled
+from agenda.ui.assets import asset_path
+from agenda.ui.code_dialogs import ContestCodeDialog, PromptDialog
 from agenda.ui.dialogs import ContestDialog, NameDialog, TopicDialog
-from agenda.ui.styles import APP_STYLE
+from agenda.ui.styles import theme_stylesheet
 from agenda.ui.widget import DesktopWidget
 
 
@@ -25,15 +28,53 @@ class MainWindow(QMainWindow):
     def __init__(self, database: Database):
         super().__init__()
         self.database = database
+        self.theme = database.get_setting("theme", "claro")
+        if self.theme not in ("claro", "escuro"):
+            self.theme = "claro"
         self.desktop_widget = DesktopWidget(database)
         self.setWindowTitle("Agenda de Concursos")
+        self.setWindowIcon(QIcon(str(asset_path("app_icon.svg"))))
         self.resize(1280, 820)
         self.setMinimumSize(1000, 680)
-        self.setStyleSheet(APP_STYLE)
+        self.apply_theme(self.theme)
+        self._build_toolbar()
         self._build_ui()
         self._refresh_all()
         if self.database.get_setting("widget_auto_show", "0") == "1":
             self.show_desktop_widget()
+
+    def apply_theme(self, theme: str) -> None:
+        self.theme = theme if theme in ("claro", "escuro") else "claro"
+        app = QApplication.instance()
+        if app is not None:
+            app.setStyleSheet(theme_stylesheet(self.theme))
+        if hasattr(self, "desktop_widget"):
+            self.desktop_widget.apply_theme(self.theme)
+
+    def _build_toolbar(self) -> None:
+        toolbar = QToolBar("Barra principal", self)
+        toolbar.setMovable(False)
+        toolbar.setIconSize(QSize(22, 22))
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+
+        brand = QAction(QIcon(str(asset_path("app_icon.svg"))), "Agenda de Concursos", self)
+        brand.setToolTip("Ícone e identidade visual do Agenda de Concursos")
+        brand.triggered.connect(lambda: self.show_page("dashboard"))
+        toolbar.addAction(brand)
+        toolbar.addSeparator()
+
+        prompts = QAction("Prompts", self)
+        prompts.triggered.connect(self._open_prompts)
+        toolbar.addAction(prompts)
+
+        code = QAction("Inserir por JSON", self)
+        code.triggered.connect(self._add_contest_from_code)
+        toolbar.addAction(code)
+
+        widget = QAction("Mostrar widget", self)
+        widget.triggered.connect(self.show_desktop_widget)
+        toolbar.addAction(widget)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
     def _build_ui(self) -> None:
         root = QWidget()
@@ -63,6 +104,7 @@ class MainWindow(QMainWindow):
             ("contests", "▤   Concursos"),
             ("content", "☷   Conteúdo programático"),
             ("compare", "⇄   Comparar conteúdos"),
+            ("prompts", "✦   Prompts"),
             ("settings", "⚙   Configurações"),
         ]
         for key, label in nav_items:
@@ -95,13 +137,6 @@ class MainWindow(QMainWindow):
         titles.addWidget(self.page_subtitle)
         header.addLayout(titles)
         header.addStretch()
-        widget_button = QPushButton("▣  Mostrar widget")
-        widget_button.clicked.connect(self.show_desktop_widget)
-        header.addWidget(widget_button)
-        new_button = QPushButton("+  Novo concurso")
-        new_button.setObjectName("PrimaryButton")
-        new_button.clicked.connect(self._add_contest)
-        header.addWidget(new_button)
         main_layout.addLayout(header)
 
         self.stack = QStackedWidget()
@@ -125,8 +160,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(17, 15, 17, 16)
         layout.setSpacing(11)
         if title:
-            label = QLabel(title)
-            label.setStyleSheet("font-size:12pt; font-weight:700; color:#24344B;")
+                label = QLabel(title)
+            label.setObjectName("PanelTitle")
             layout.addWidget(label)
         return frame, layout
 
@@ -164,7 +199,7 @@ class MainWindow(QMainWindow):
 
         panel, panel_layout = self._panel("Agenda de datas")
         subtitle = QLabel("Provas e previsões cadastradas, em ordem cronológica.")
-        subtitle.setStyleSheet("color:#7A8799; font-size:9pt;")
+        subtitle.setObjectName("MutedText")
         panel_layout.addWidget(subtitle)
         self.dashboard_list = QListWidget()
         self.dashboard_list.setAlternatingRowColors(True)
@@ -175,7 +210,7 @@ class MainWindow(QMainWindow):
         actions = QHBoxLayout()
         hint = QLabel("Dica: cadastre primeiro seus concursos de interesse. Você pode completar as datas depois.")
         hint.setWordWrap(True)
-        hint.setStyleSheet("color:#7A8799; font-size:9pt;")
+        hint.setObjectName("MutedText")
         actions.addWidget(hint, 1)
         add = QPushButton("+ Cadastrar concurso")
         add.setObjectName("PrimaryButton")
@@ -197,6 +232,10 @@ class MainWindow(QMainWindow):
         add.setObjectName("PrimaryButton")
         add.clicked.connect(self._add_contest)
         toolbar.addWidget(add)
+        add_code = QPushButton("Inserir por código JSON")
+        add_code.setToolTip("Cadastrar uma ficha completa colando um objeto JSON validado")
+        add_code.clicked.connect(self._add_contest_from_code)
+        toolbar.addWidget(add_code)
         layout.addLayout(toolbar)
 
         panel, panel_layout = self._panel()
@@ -262,7 +301,7 @@ class MainWindow(QMainWindow):
         topics_panel, topics_layout = self._panel("Tópicos programáticos")
         topic_help = QLabel("Cadastre cada assunto separadamente. O nome padronizado ajuda a comparar editais.")
         topic_help.setWordWrap(True)
-        topic_help.setStyleSheet("color:#78869A; font-size:8pt;")
+        topic_help.setObjectName("HintText")
         topics_layout.addWidget(topic_help)
         self.topic_list = QListWidget()
         self.topic_list.itemDoubleClicked.connect(self._edit_topic)
@@ -305,13 +344,13 @@ class MainWindow(QMainWindow):
 
         summary_panel, summary_layout = self._panel("Resultado da comparação")
         self.compare_score = QLabel("Selecione dois concursos e inicie a comparação.")
-        self.compare_score.setStyleSheet("font-size:17pt; font-weight:700; color:#2864C5;")
+        self.compare_score.setObjectName("CompareScore")
         summary_layout.addWidget(self.compare_score)
         self.compare_detail = QLabel(
             "Estimativa textual baseada nos tópicos cadastrados. Revise os pares sugeridos antes de tomar decisões de estudo."
         )
         self.compare_detail.setWordWrap(True)
-        self.compare_detail.setStyleSheet("color:#6F7E93;")
+        self.compare_detail.setObjectName("MutedText")
         summary_layout.addWidget(self.compare_detail)
         self.compare_tree = QTreeWidget()
         self.compare_tree.setHeaderLabels(["Disciplina / tópico", "Correspondência", "Observação"])
@@ -325,6 +364,17 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
         general, general_layout = self._panel("Preferências")
+        theme_row = QHBoxLayout()
+        theme_row.addWidget(QLabel("Aparência:"))
+        self.theme_combo = QComboBox()
+        self.theme_combo.addItem("Modo claro", "claro")
+        self.theme_combo.addItem("Modo escuro", "escuro")
+        self.theme_combo.setCurrentIndex(max(0, self.theme_combo.findData(self.theme)))
+        self.theme_combo.currentIndexChanged.connect(self._on_theme_changed)
+        theme_row.addWidget(self.theme_combo)
+        theme_row.addStretch()
+        general_layout.addLayout(theme_row)
+
         self.startup_check = QCheckBox("Iniciar automaticamente quando eu entrar no Windows")
         self.startup_check.setChecked(startup_enabled())
         self.auto_widget_check = QCheckBox("Mostrar o widget automaticamente ao abrir o aplicativo")
@@ -351,7 +401,7 @@ class MainWindow(QMainWindow):
             "A importação substitui os dados atuais; faça uma cópia antes de restaurar."
         )
         explanation.setWordWrap(True)
-        explanation.setStyleSheet("color:#718096;")
+        explanation.setObjectName("MutedText")
         backup_layout.addWidget(explanation)
         actions = QHBoxLayout()
         export_button = QPushButton("Exportar backup JSON")
@@ -367,6 +417,11 @@ class MainWindow(QMainWindow):
         return page
 
     def show_page(self, key: str) -> None:
+        if key == "prompts":
+            for nav_key, button in self.nav_buttons.items():
+                button.setChecked(nav_key == key)
+            self._open_prompts()
+            return
         labels = {
             "dashboard": ("Visão geral", "Acompanhe seus objetivos e organize sua preparação."),
             "contests": ("Concursos", "Mantenha uma ficha para cada oportunidade de interesse."),
@@ -391,6 +446,32 @@ class MainWindow(QMainWindow):
         elif key == "compare":
             self._refresh_contest_combos(self.compare_a)
             self._refresh_contest_combos(self.compare_b)
+
+    def _open_prompts(self) -> None:
+        PromptDialog(self).exec()
+
+    def _add_contest_from_code(self) -> None:
+        dialog = ContestCodeDialog(self)
+        if not dialog.exec():
+            return
+        try:
+            contest_id = self.database.add_contest_payload(dialog.payload())
+            self._refresh_all()
+            QMessageBox.information(
+                self,
+                "Concurso cadastrado",
+                f"A ficha e seu conteúdo programático foram adicionados ao banco de dados (código {contest_id}).",
+            )
+        except Exception as error:
+            QMessageBox.critical(self, "Não foi possível importar o código", str(error))
+
+    def _on_theme_changed(self, *_args) -> None:
+        selected = self.theme_combo.currentData()
+        if selected not in ("claro", "escuro"):
+            return
+        self.theme = selected
+        self.database.set_setting("theme", selected)
+        self.apply_theme(selected)
 
     def show_desktop_widget(self) -> None:
         self.desktop_widget.refresh()
@@ -677,6 +758,7 @@ class MainWindow(QMainWindow):
             root.setExpanded(True)
 
     def _save_settings(self) -> None:
+        self.database.set_setting("theme", self.theme)
         try:
             if self.startup_check.isChecked():
                 enable_startup()
