@@ -390,7 +390,13 @@ class Database:
 
     def export_json(self, destination: Path | str) -> None:
         with self._connect() as db:
-            contests = [dict(r) for r in db.execute("SELECT * FROM concursos ORDER BY id")]
+            backup_fields = ["id"] + list(CONTEST_FIELDS) + ["created_at", "updated_at"]
+            contests = [
+                {field: row[field] for field in backup_fields}
+                for row in db.execute(
+                    f"SELECT {', '.join(backup_fields)} FROM concursos ORDER BY id"
+                )
+            ]
             disciplines = [dict(r) for r in db.execute("SELECT * FROM disciplinas ORDER BY id")]
             topics = [dict(r) for r in db.execute("SELECT * FROM topicos ORDER BY id")]
             cargos = [dict(r) for r in db.execute("SELECT * FROM cargos ORDER BY id")]
