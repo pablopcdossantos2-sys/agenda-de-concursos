@@ -9,12 +9,15 @@ from PySide6.QtGui import QAction, QColor, QIcon
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QMainWindow, QMessageBox, QPushButton, QScrollArea,
-    QSpinBox, QStackedWidget, QTableWidget, QTableWidgetItem, QToolBar,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+    QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
+    QPushButton, QScrollArea, QSpinBox, QStackedWidget, QSystemTrayIcon,
+    QTableWidget, QTableWidgetItem, QToolBar, QTreeWidget, QTreeWidgetItem,
+    QVBoxLayout, QWidget
 )
 
 from agenda.database import Database
+from agenda.services.dates import format_date_pt_br
+from agenda.services.profile import EDUCATION_LEVELS, profile_summary
 from agenda.services.similarity import compare_programs
 from agenda.startup import disable_startup, enable_startup, startup_enabled
 from agenda.ui.assets import asset_path
@@ -42,6 +45,7 @@ class MainWindow(QMainWindow):
         self.apply_theme(self.theme)
         self._build_toolbar()
         self._build_ui()
+        self._setup_tray()
         self._refresh_all()
         if self.database.get_setting("widget_auto_show", "0") == "1":
             self.show_desktop_widget()
@@ -74,9 +78,9 @@ class MainWindow(QMainWindow):
         code.triggered.connect(self._add_contest_from_code)
         toolbar.addAction(code)
 
-        widget = QAction("Mostrar widget", self)
-        widget.triggered.connect(self.show_desktop_widget)
-        toolbar.addAction(widget)
+        self.widget_action = QAction("Mostrar widget", self)
+        self.widget_action.triggered.connect(self._toggle_desktop_widget)
+        toolbar.addAction(self.widget_action)
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
 
     def _build_ui(self) -> None:
@@ -109,6 +113,7 @@ class MainWindow(QMainWindow):
             ("content", "☷   Conteúdo programático"),
             ("compare", "⇄   Comparar conteúdos"),
             ("prompts", "✦   Prompts"),
+            ("profile", "◎   Perfil"),
             ("settings", "⚙   Configurações"),
         ]
         for key, label in nav_items:
@@ -152,6 +157,7 @@ class MainWindow(QMainWindow):
         self.pages["contests"] = self._build_contests_page()
         self.pages["content"] = self._build_content_page()
         self.pages["compare"] = self._build_compare_page()
+        self.pages["profile"] = self._build_profile_page()
         self.pages["settings"] = self._build_settings_page()
         for page in self.pages.values():
             self.stack.addWidget(page)
@@ -372,6 +378,84 @@ class MainWindow(QMainWindow):
         layout.addWidget(summary_panel, 1)
         return page
 
+    def _build_profile_page(self) -> QWidget:
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        profile = self.database.get_user_profile()
+        general, general_layout = self._panel("Níveis de escolaridade desejados")
+        intro = QLabel(
+            "Marque os níveis que você aceita. Se nenhum nível for selecionado, o prompt "
+            "considerará todos os níveis de escolaridade."
+        )
+        intro.setObjectName("MutedText")
+        intro.setWordWrap(True)
+        general_layout.addWidget(intro)
+
+        self.profile_level_checks: dict[str, QCheckBox] = {}
+        levels_row = QHBoxLayout()
+        for level in EDUCATION_LEVELS:
+            check = QCheckBox(level)
+            check.setChecked(level in profile["niveis_escolaridade"])
+            self.profile_level_checks[level] = check
+            levels_row.addWidget(check)
+        levels_row.addStretch()
+        general_layout.addLayout(levels_row)
+        layout.addWidget(general)
+
+        roles_panel, roles_layout = self._panel("Cargos e profissões de interesse")
+        roles_help = QLabel(
+            "Informe um cargo ou profissão por linha. Exemplos: Médico, Jornalista, "
+            "Médico cardiologista. O prompt considerará também os requisitos obrigatórios "
+            "para distinguir cargos semelhantes."
+        )
+        roles_help.setObjectName("MutedText")
+        roles_help.setWordWrap(True)
+        roles_layout.addWidget(roles_help)
+        self.profile_roles_edit = QPlainTextEdit()
+        self.profile_roles_edit.setPlaceholderText("Médico\nJornalista\nAnalista de sistemas")
+        self.profile_roles_edit.setPlainText("\n".join(profile["cargos_desejados"]))
+        self.profile_roles_edit.setMaximumHeight(150)
+        roles_layout.addWidget(self.profile_roles_edit)
+
+        notes_label = QLabel("Requisitos adicionais (opcional)")
+        notes_label.setObjectName("PanelTitle")
+        roles_layout.addWidget(notes_label)
+        self.profile_notes_edit = QPlainTextEdit()
+        self.profile_notes_edit.setPlaceholderText(
+            "Ex.: aceitar somente cargos com registro profissional ativo; não considerar contratos temporários."
+        )
+        self.profile_notes_edit.setMaximumHeight(90)
+        self.profile_notes_edit.setPlainText(profile["observacoes"])
+        roles_layout.addWidget(self.profile_notes_edit)
+        save_profile = QPushButton("Salvar perfil")
+        save_profile.setObjectName("PrimaryButton")
+        save_profile.clicked.connect(self._save_profile)
+        roles_layout.addWidget(save_profile)
+        self.profile_saved_label = QLabel(profile_summary(profile))
+        self.profile_saved_label.setObjectName("MutedText")
+        self.profile_saved_label.setWordWrap(True)
+        roles_layout.addWidget(self.profile_saved_label)
+        layout.addWidget(roles_panel)
+        layout.addStretch()
+        return page
+
+    def _save_profile(self) -> None:
+        profile = {
+            "niveis_escolaridade": [
+                level for level, check in self.profile_level_checks.items() if check.isChecked()
+            ],
+            "cargos_desejados": self.profile_roles_edit.toPlainText().splitlines(),
+            "observacoes": self.profile_notes_edit.toPlainText(),
+        }
+        normalized = self.database.save_user_profile(profile)
+        self.profile_saved_label.setText("Perfil salvo. " + profile_summary(normalized))
+        QMessageBox.information(
+            self, "Perfil atualizado",
+            "O perfil foi salvo e será aplicado ao próximo prompt gerado na seção Prompts."
+        )
+
     def _build_settings_page(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -462,6 +546,7 @@ class MainWindow(QMainWindow):
             "contests": ("Concursos", "Mantenha uma ficha para cada oportunidade de interesse."),
             "content": ("Conteúdo programático", "Estruture disciplinas e tópicos de cada concurso."),
             "compare": ("Comparar conteúdos", "Descubra quais assuntos se repetem entre diferentes seleções."),
+            "profile": ("Perfil", "Defina os níveis de escolaridade e os cargos que você deseja encontrar."),
             "settings": ("Configurações", "Ajuste a inicialização, o widget e seus backups locais."),
         }
         if key not in self.pages:
@@ -483,7 +568,7 @@ class MainWindow(QMainWindow):
             self._refresh_contest_combos(self.compare_b)
 
     def _open_prompts(self) -> None:
-        PromptDialog(self).exec()
+        PromptDialog(self, self.database.get_user_profile()).exec()
 
     def _add_contest_from_code(self) -> None:
         dialog = ContestCodeDialog(self)
@@ -513,6 +598,76 @@ class MainWindow(QMainWindow):
         self.desktop_widget.show()
         self.desktop_widget.raise_()
         self.desktop_widget.activateWindow()
+        self._update_widget_actions()
+
+    def _toggle_desktop_widget(self) -> None:
+        if self.desktop_widget.isVisible():
+            self.desktop_widget.hide()
+        else:
+            self.show_desktop_widget()
+        self._update_widget_actions()
+
+    def _update_widget_actions(self) -> None:
+        visible = self.desktop_widget.isVisible()
+        label = "Ocultar widget" if visible else "Mostrar widget"
+        if hasattr(self, "widget_action"):
+            self.widget_action.setText(label)
+        if self.tray_widget_action is not None:
+            self.tray_widget_action.setText(label)
+
+    def _setup_tray(self) -> None:
+        self._allow_quit = False
+        self.tray_icon = None
+        self.tray_widget_action = None
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            app = QApplication.instance()
+            if app is not None:
+                app.setQuitOnLastWindowClosed(True)
+            return
+
+        app = QApplication.instance()
+        if app is not None:
+            app.setQuitOnLastWindowClosed(False)
+        tray = QSystemTrayIcon(QIcon(str(asset_path("app_icon.svg"))), self)
+        tray.setToolTip("Agenda de Concursos")
+        menu = QMenu(self)
+        open_action = QAction("Abrir Agenda de Concursos", self)
+        open_action.triggered.connect(self._restore_main_window)
+        menu.addAction(open_action)
+        self.tray_widget_action = QAction("Mostrar widget", self)
+        self.tray_widget_action.triggered.connect(self._toggle_desktop_widget)
+        menu.addAction(self.tray_widget_action)
+        menu.addSeparator()
+        quit_action = QAction("Sair do aplicativo", self)
+        quit_action.triggered.connect(self._quit_application)
+        menu.addAction(quit_action)
+        tray.setContextMenu(menu)
+        tray.activated.connect(self._on_tray_activated)
+        tray.show()
+        self.tray_icon = tray
+        self._update_widget_actions()
+
+    def _restore_main_window(self) -> None:
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def _on_tray_activated(self, reason) -> None:
+        if reason in (
+            QSystemTrayIcon.ActivationReason.Trigger,
+            QSystemTrayIcon.ActivationReason.DoubleClick,
+        ):
+            self._restore_main_window()
+
+    def _quit_application(self) -> None:
+        self._allow_quit = True
+        self.desktop_widget.hide()
+        if self.tray_icon is not None:
+            self.tray_icon.hide()
+        self.hide()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
 
     def _refresh_all(self) -> None:
         self._refresh_contest_table()
@@ -554,7 +709,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Ficha não encontrada", "O concurso pode ter sido removido.")
             return
         program = self.database.get_program(int(contest_id))
-        ContestDetailsDialog(contest, program, self).exec()
+        ContestDetailsDialog(contest, program, self, database=self.database).exec()
 
     def _refresh_contest_table(self) -> None:
         if not hasattr(self, "contest_table"):
@@ -564,7 +719,7 @@ class MainWindow(QMainWindow):
         for contest in rows:
             row_index = self.contest_table.rowCount()
             self.contest_table.insertRow(row_index)
-            event_date = contest.get("data_prova") or contest.get("data_prevista") or "—"
+            event_date = format_date_pt_br(contest.get("data_prova")) if contest.get("data_prova") else "—"
             values = [
                 contest.get("nome", ""),
                 contest.get("orgao", ""),
@@ -618,7 +773,10 @@ class MainWindow(QMainWindow):
         dialog = ContestDialog(self)
         if dialog.exec():
             try:
-                self.database.save_contest(dialog.values())
+                values = dialog.values()
+                cargos = values.pop("cargos", [])
+                contest_id = self.database.save_contest(values)
+                self.database.replace_cargos(contest_id, cargos)
                 self._refresh_all()
             except Exception as error:
                 QMessageBox.critical(self, "Não foi possível salvar", str(error))
@@ -631,10 +789,14 @@ class MainWindow(QMainWindow):
         data = self.database.get_contest(contest_id)
         if data is None:
             return
+        data["cargos"] = self.database.list_cargos(contest_id)
         dialog = ContestDialog(self, data)
         if dialog.exec():
             try:
-                self.database.save_contest(dialog.values(), contest_id)
+                values = dialog.values()
+                cargos = values.pop("cargos", [])
+                self.database.save_contest(values, contest_id)
+                self.database.replace_cargos(contest_id, cargos)
                 self._refresh_all()
             except Exception as error:
                 QMessageBox.critical(self, "Não foi possível salvar", str(error))
@@ -867,5 +1029,11 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Falha na importação", str(error))
 
     def closeEvent(self, event) -> None:
+        if self.tray_icon is not None and not self._allow_quit:
+            self.hide()
+            event.ignore()
+            return
         self.desktop_widget.hide()
+        if self.tray_icon is not None:
+            self.tray_icon.hide()
         event.accept()
