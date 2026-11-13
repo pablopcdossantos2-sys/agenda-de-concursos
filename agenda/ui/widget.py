@@ -4,7 +4,7 @@ from datetime import date
 from typing import Any
 
 from PySide6.QtCore import Qt, QSize, QPoint
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QColor
 from PySide6.QtWidgets import QFrame, QLabel, QListWidget, QListWidgetItem, QVBoxLayout, QWidget, QPushButton
 
 
@@ -123,6 +123,12 @@ class DesktopWidget(QWidget):
             status = contest.get("status") or "Sem Previsão"
             text = f"{contest.get('nome', 'Concurso')}\n{date_label}  •  {status}"
             item = QListWidgetItem(text)
+            status_colors = {
+                "Previsto": "#F2C078",
+                "Edital publicado": "#86D6B0",
+                "Sem Previsão": "#C0CDDE",
+            }
+            item.setForeground(QColor(status_colors.get(status, "#E7EDF5")))
             item.setToolTip(f"{contest.get('orgao','')} — {contest.get('cargo','')}")
             item.setSizeHint(QSize(340, 56))
             self.items.addItem(item)
