@@ -11,10 +11,16 @@ TEXT_FIELDS = (
     "nome", "orgao", "cargo", "banca", "localidade", "url_edital",
     "url_oficial", "observacoes",
 )
-DATE_FIELDS = ("inscricoes_inicio", "inscricoes_fim", "data_prova", "data_prevista")
-CONTEST_KEYS = set(TEXT_FIELDS + DATE_FIELDS + ("status", "prioridade", "disciplinas"))
+DATE_FIELDS = ("inscricoes_inicio", "inscricoes_fim", "data_prova")
+CONTEST_KEYS = set(TEXT_FIELDS + DATE_FIELDS + ("data_prevista", "status", "prioridade", "disciplinas", "cargos"))
 DISCIPLINE_KEYS = {"nome", "topicos"}
 TOPIC_KEYS = {"nome", "nome_padronizado"}
+CARGO_KEYS = {
+    "nome", "nivel_escolaridade", "requisitos", "salario_inicial",
+    "salario_final", "beneficios", "jornada", "vagas", "localidade",
+    "observacoes",
+}
+CARGO_TEXT_FIELDS = tuple(CARGO_KEYS)
 
 
 def _check_keys(value: dict[str, Any], allowed: set[str], context: str) -> None:
@@ -23,12 +29,28 @@ def _check_keys(value: dict[str, Any], allowed: set[str], context: str) -> None:
         raise ValueError(f"Campo(s) não reconhecido(s) em {context}: {', '.join(unknown)}.")
 
 
-def normalize_contest_payload(payload: Any) -> dict[str, Any]:
-    """Valida e normaliza uma ficha de concurso no formato JSON versionado.
+def normalize_cargo(item: Any, context: str = "cargo") -> dict[str, str]:
+    if not isinstance(item, dict):
+        raise ValueError(f"{context} precisa ser um objeto JSON.")
+    _check_keys(item, CARGO_KEYS, context)
+    cleaned: dict[str, str] = {}
+    for field in CARGO_TEXT_FIELDS:
+        value = item.get(field, "")
+        if value is None:
+            value = ""
+        if not isinstance(value, str):
+            if field == "vagas" and isinstance(value, (int, float)) and not isinstance(value, bool):
+                value = str(value)
+            else:
+                raise ValueError(f"O campo '{field}' em {context} precisa ser texto.")
+        cleaned[field] = value.strip()
+    if not cleaned["nome"]:
+        raise ValueError(f"Informe o nome em {context}.")
+    return cleaned
 
-    O método nunca executa código. Ele aceita somente dados JSON e uma lista
-    explícita de campos conhecidos.
-    """
+
+def normalize_contest_payload(payload: Any) -> dict[str, Any]:
+    """Valida uma ficha JSON sem executar qualquer código fornecido por terceiros."""
     if not isinstance(payload, dict):
         raise ValueError("O conteúdo precisa ser um objeto JSON.")
     _check_keys(payload, {"schema_version", "concurso"}, "raiz")
@@ -81,6 +103,14 @@ def normalize_contest_payload(payload: Any) -> dict[str, Any]:
     else:
         raise ValueError("O campo 'prioridade' deve ser true, false, 1 ou 0.")
 
+    cargos = contest.get("cargos", [])
+    if not isinstance(cargos, list):
+        raise ValueError("O campo 'cargos' precisa ser uma lista.")
+    cleaned["cargos"] = [
+        normalize_cargo(item, f"cargos[{index}]")
+        for index, item in enumerate(cargos)
+    ]
+
     disciplines = contest.get("disciplinas", [])
     if not isinstance(disciplines, list):
         raise ValueError("O campo 'disciplinas' precisa ser uma lista.")
@@ -122,6 +152,8 @@ def normalize_contest_payload(payload: Any) -> dict[str, Any]:
         })
 
     cleaned["disciplinas"] = normalized_disciplines
+    # data_prevista é aceito somente para compatibilidade com JSON antigos;
+    # não é persistido nem utilizado pelo sistema atual.
     return {"schema_version": SCHEMA_VERSION, "concurso": cleaned}
 
 
