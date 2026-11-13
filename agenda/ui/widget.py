@@ -173,6 +173,7 @@ class DesktopWidget(QWidget):
         for item in contests:
             event_date = item.get("data_prova") or ""
             if not event_date or event_date >= today:
+                item["cargos"] = self.database.list_cargos(int(item["id"]))
                 eligible.append(item)
 
         eligible.sort(key=lambda item: item.get("data_prova") or "9999-12-31")
