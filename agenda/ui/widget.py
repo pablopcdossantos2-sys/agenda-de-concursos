@@ -98,16 +98,17 @@ class DesktopWidget(QWidget):
         self.items.clear()
         contests = self.database.list_contests()
         today_iso = date.today().isoformat()
-        eligible = [
-            item for item in contests
-            if (item.get("data_prova") or item.get("data_prevista") or "") >= today_iso
-        ]
+        eligible = []
+        for item in contests:
+            event_date = item.get("data_prova") or item.get("data_prevista") or ""
+            if not event_date or event_date >= today_iso:
+                eligible.append(item)
         eligible.sort(key=lambda item: item.get("data_prova") or item.get("data_prevista") or "9999-12-31")
         visible = eligible[:self.item_limit]
         today = date.today()
         for contest in visible:
             event_date = contest.get("data_prova") or contest.get("data_prevista") or ""
-            date_label = event_date
+            date_label = event_date or "Data ainda não informada"
             try:
                 parsed = date.fromisoformat(event_date)
                 delta = (parsed - today).days
@@ -127,5 +128,5 @@ class DesktopWidget(QWidget):
             self.items.addItem(item)
         if not visible:
             self.items.addItem(QListWidgetItem("Nenhum concurso com data cadastrada."))
-        self.count_label.setText(f"Exibindo {len(visible)} de {len(eligible)} concursos com data")
+        self.count_label.setText(f"Exibindo {len(visible)} de {len(eligible)} concursos futuros ou sem data")
         self.adjustSize()
