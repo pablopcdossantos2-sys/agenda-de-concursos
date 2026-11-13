@@ -65,7 +65,7 @@ Retorne apenas um objeto JSON válido, sem introdução, sem comentários e sem 
     "cargo": "",
     "banca": "Banca organizadora",
     "localidade": "Cidade, estado ou abrangência",
-    "status": "Edital publicado",
+    "status": "Sem Previsão",
     "inscricoes_inicio": "",
     "inscricoes_fim": "",
     "data_prova": "",
