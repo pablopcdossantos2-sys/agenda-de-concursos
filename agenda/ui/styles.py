@@ -87,7 +87,7 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QLabel#PanelTitle {{ color: {c['text']}; font-size: 12pt; font-weight: 700; }}
     QLabel#MetricValue {{ color: {c['text']}; font-size: 23pt; font-weight: 700; }}
     QLabel#MetricCaption {{ color: {c['muted']}; font-size: 9pt; }}
-    QLabel#CompareScore {{ color: #4D8DF0; font-size: 17pt; font-weight: 700; }}
+    QLabel#CompareScore {{ color: {c['chip_text']}; font-size: 17pt; font-weight: 700; }}
     QFrame#Panel, QFrame#MetricCard, QFrame#DetailsSection {{
         background: {c['panel']}; border: 1px solid {c['border']}; border-radius: 13px;
     }}
@@ -95,7 +95,7 @@ def theme_stylesheet(theme: str = "claro") -> str:
         background: {c['panel']}; color: {c['text']};
         border: 1px solid {c['border']}; border-radius: 11px;
     }}
-    QFrame#ContestCard:hover {{
+    QFrame#ContestCard:hover, QFrame#ContestCard:focus {{
         background: {c['card_hover']}; border: 1px solid #4D8DF0;
     }}
     QLabel#ContestCardTitle {{ background: transparent; color: {c['text']}; font-weight: 700; font-size: 10pt; }}
@@ -127,6 +127,13 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QPushButton#PrimaryButton:hover {{ background: #1F55AE; }}
     QPushButton#DangerButton {{
         color: {c['danger_text']}; background: {c['danger_bg']}; border: 1px solid {c['danger_border']};
+    }}
+    QPushButton#PrimaryButton:disabled, QPushButton#DangerButton:disabled {{
+        color: {c['muted']}; background: {c['background']}; border-color: {c['border']};
+    }}
+    QPushButton:focus, QPushButton#NavButton:focus, QPushButton#PrimaryButton:focus,
+    QPushButton#DangerButton:focus {{
+        border: 1px solid #4D8DF0;
     }}
     QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {{
         background: {c['input']}; color: {c['text']}; border: 1px solid {c['border']};

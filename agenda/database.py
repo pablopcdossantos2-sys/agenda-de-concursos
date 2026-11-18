@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any, Iterator
 
 from agenda.services.contest_payload import normalize_contest_payload
@@ -16,6 +18,15 @@ CONTEST_FIELDS = (
     "inscricoes_inicio", "inscricoes_fim", "data_prova",
     "url_edital", "url_oficial", "observacoes", "prioridade",
 )
+CARGO_FIELDS = (
+    "nome", "nivel_escolaridade", "requisitos", "salario_inicial",
+    "salario_final", "beneficios", "jornada", "vagas", "localidade", "observacoes",
+)
+
+
+def _search_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value.casefold())
+    return "".join(char for char in normalized if not unicodedata.combining(char))
 
 
 class Database:
@@ -114,21 +125,26 @@ class Database:
     def list_contests(self, search: str = "") -> list[dict[str, Any]]:
         with self._connect() as db:
             if search.strip():
-                term = f"%{search.strip()}%"
+                db.create_function("search_text", 1, _search_text, deterministic=True)
+                term = _search_text(search.strip())
                 rows = db.execute(
                     """SELECT * FROM concursos
-                       WHERE nome LIKE ? OR orgao LIKE ? OR cargo LIKE ? OR banca LIKE ?
+                       WHERE instr(search_text(nome), :term) > 0
+                          OR instr(search_text(orgao), :term) > 0
+                          OR instr(search_text(cargo), :term) > 0
+                          OR instr(search_text(banca), :term) > 0
                           OR EXISTS (
                               SELECT 1 FROM cargos
-                              WHERE cargos.concurso_id = concursos.id AND cargos.nome LIKE ?
+                              WHERE cargos.concurso_id = concursos.id
+                                AND instr(search_text(cargos.nome), :term) > 0
                           )
-                       ORDER BY COALESCE(data_prova, '9999-12-31'), nome""",
-                    (term, term, term, term, term),
+                       ORDER BY COALESCE(NULLIF(data_prova, ''), '9999-12-31'), nome""",
+                    {"term": term},
                 ).fetchall()
             else:
                 rows = db.execute(
                     """SELECT * FROM concursos
-                       ORDER BY COALESCE(data_prova, '9999-12-31'), nome"""
+                       ORDER BY COALESCE(NULLIF(data_prova, ''), '9999-12-31'), nome"""
                 ).fetchall()
             return [dict(row) for row in rows]
 
@@ -139,58 +155,50 @@ class Database:
             ).fetchone())
 
     def save_contest(self, data: dict[str, Any], contest_id: int | None = None) -> int:
-        nome = str(data.get("nome", "")).strip()
-        if not nome:
-            raise ValueError("Informe o nome do concurso ou processo seletivo.")
-        values = {field: data.get(field) for field in CONTEST_FIELDS}
-        values["nome"] = nome
-        values["status"] = values.get("status") or "Sem Previsão"
-        for field in ("orgao", "cargo", "banca", "localidade", "url_edital", "url_oficial", "observacoes"):
-            values[field] = values.get(field) or ""
-        values["prioridade"] = int(values.get("prioridade") or 0)
-        now = datetime.now().isoformat(timespec="seconds")
         with self._connect() as db:
-            if contest_id is None:
-                columns = list(CONTEST_FIELDS) + ["created_at", "updated_at"]
-                placeholders = ", ".join("?" for _ in columns)
-                cursor = db.execute(
-                    f"INSERT INTO concursos ({', '.join(columns)}) VALUES ({placeholders})",
-                    [values.get(field) for field in CONTEST_FIELDS] + [now, now],
-                )
-                return int(cursor.lastrowid)
-            assignments = ", ".join(f"{field} = ?" for field in CONTEST_FIELDS)
-            db.execute(
-                f"UPDATE concursos SET {assignments}, updated_at = ? WHERE id = ?",
-                [values.get(field) for field in CONTEST_FIELDS] + [now, contest_id],
+            saved_id = self._save_contest(db, data, contest_id)
+            if "cargos" in data:
+                self._replace_cargos(db, saved_id, data["cargos"])
+            return saved_id
+
+    @staticmethod
+    def _save_contest(
+        db: sqlite3.Connection, data: dict[str, Any], contest_id: int | None = None
+    ) -> int:
+        values = {field: data.get(field) or "" for field in CONTEST_FIELDS}
+        values["nome"] = str(values["nome"]).strip()
+        if not values["nome"]:
+            raise ValueError("Informe o nome do concurso ou processo seletivo.")
+        values["status"] = values["status"] or "Sem Previsão"
+        values["prioridade"] = int(values["prioridade"] or 0)
+        for field in ("inscricoes_inicio", "inscricoes_fim", "data_prova"):
+            values[field] = values[field] or None
+        now = datetime.now().isoformat(timespec="seconds")
+        params = [values[field] for field in CONTEST_FIELDS]
+        if contest_id is None:
+            columns = (*CONTEST_FIELDS, "created_at", "updated_at")
+            placeholders = ", ".join("?" for _ in columns)
+            cursor = db.execute(
+                f"INSERT INTO concursos ({', '.join(columns)}) VALUES ({placeholders})",
+                [*params, now, now],
             )
-            return contest_id
+            return int(cursor.lastrowid)
+        assignments = ", ".join(f"{field} = ?" for field in CONTEST_FIELDS)
+        cursor = db.execute(
+            f"UPDATE concursos SET {assignments}, updated_at = ? WHERE id = ?",
+            [*params, now, contest_id],
+        )
+        if not cursor.rowcount:
+            raise ValueError("O concurso selecionado não existe.")
+        return contest_id
 
     def add_contest_payload(self, payload: dict[str, Any]) -> int:
         """Cria concurso, disciplinas e tópicos numa única transação SQLite."""
         normalized = normalize_contest_payload(payload)
-        contest = dict(normalized["concurso"])
-        disciplines = contest.pop("disciplinas", [])
-        cargos = contest.pop("cargos", [])
-        values = {field: contest.get(field) for field in CONTEST_FIELDS}
-        values["nome"] = str(values.get("nome") or "").strip()
-        values["status"] = values.get("status") or "Sem Previsão"
-        for field in ("orgao", "cargo", "banca", "localidade", "url_edital", "url_oficial", "observacoes"):
-            values[field] = values.get(field) or ""
-        for field in ("inscricoes_inicio", "inscricoes_fim", "data_prova"):
-            values[field] = values.get(field) or None
-        values["prioridade"] = int(values.get("prioridade") or 0)
-        now = datetime.now().isoformat(timespec="seconds")
-
+        contest = normalized["concurso"]
         with self._connect() as db:
-            columns = list(CONTEST_FIELDS) + ["created_at", "updated_at"]
-            placeholders = ", ".join("?" for _ in columns)
-            cursor = db.execute(
-                f"INSERT INTO concursos ({', '.join(columns)}) VALUES ({placeholders})",
-                [values.get(field) for field in CONTEST_FIELDS] + [now, now],
-            )
-            contest_id = int(cursor.lastrowid)
-
-            for discipline_order, discipline in enumerate(disciplines):
+            contest_id = self._save_contest(db, contest)
+            for discipline_order, discipline in enumerate(contest["disciplinas"]):
                 discipline_cursor = db.execute(
                     "INSERT INTO disciplinas (concurso_id, nome, ordem) VALUES (?, ?, ?)",
                     (contest_id, discipline["nome"], discipline_order),
@@ -207,20 +215,16 @@ class Database:
                             topic_order,
                         ),
                     )
-            for order, cargo in enumerate(cargos):
+            for order, cargo in enumerate(contest["cargos"]):
                 self._insert_cargo(db, contest_id, cargo, order)
         return contest_id
 
     @staticmethod
     def _insert_cargo(db: sqlite3.Connection, contest_id: int, cargo: dict[str, Any], order: int) -> int:
-        fields = (
-            "nome", "nivel_escolaridade", "requisitos", "salario_inicial",
-            "salario_final", "beneficios", "jornada", "vagas", "localidade", "observacoes",
-        )
-        values = [str(cargo.get(field) or "").strip() for field in fields]
+        values = [str(cargo.get(field) or "").strip() for field in CARGO_FIELDS]
         cursor = db.execute(
-            f"INSERT INTO cargos (concurso_id, {', '.join(fields)}, ordem) "
-            f"VALUES ({', '.join('?' for _ in range(len(fields) + 2))})",
+            f"INSERT INTO cargos (concurso_id, {', '.join(CARGO_FIELDS)}, ordem) "
+            f"VALUES ({', '.join('?' for _ in range(len(CARGO_FIELDS) + 2))})",
             [contest_id] + values + [order],
         )
         return int(cursor.lastrowid)
@@ -234,40 +238,36 @@ class Database:
             return [dict(row) for row in rows]
 
     def replace_cargos(self, contest_id: int, cargos: list[dict[str, Any]]) -> None:
+        with self._connect() as db:
+            exists = db.execute("SELECT 1 FROM concursos WHERE id = ?", (contest_id,)).fetchone()
+            if not exists:
+                raise ValueError("O concurso selecionado não existe.")
+            self._replace_cargos(db, contest_id, cargos)
+
+    def _replace_cargos(
+        self, db: sqlite3.Connection, contest_id: int, cargos: list[dict[str, Any]]
+    ) -> None:
         if not isinstance(cargos, list):
             raise ValueError("A lista de cargos é inválida.")
         for index, cargo in enumerate(cargos):
             if not isinstance(cargo, dict) or not str(cargo.get("nome") or "").strip():
                 raise ValueError(f"Informe o nome do cargo na posição {index + 1}.")
-        with self._connect() as db:
-            exists = db.execute("SELECT 1 FROM concursos WHERE id = ?", (contest_id,)).fetchone()
-            if not exists:
-                raise ValueError("O concurso selecionado não existe.")
-            db.execute("DELETE FROM cargos WHERE concurso_id = ?", (contest_id,))
-            for order, cargo in enumerate(cargos):
-                self._insert_cargo(db, contest_id, cargo, order)
+        db.execute("DELETE FROM cargos WHERE concurso_id = ?", (contest_id,))
+        for order, cargo in enumerate(cargos):
+            self._insert_cargo(db, contest_id, cargo, order)
 
     def save_cargo(self, contest_id: int, cargo: dict[str, Any], cargo_id: int | None = None) -> int:
         if not str(cargo.get("nome") or "").strip():
             raise ValueError("Informe o nome do cargo.")
-        fields = (
-            "nome", "nivel_escolaridade", "requisitos", "salario_inicial",
-            "salario_final", "beneficios", "jornada", "vagas", "localidade", "observacoes",
-        )
-        values = [str(cargo.get(field) or "").strip() for field in fields]
         with self._connect() as db:
             if cargo_id is None:
                 order = db.execute(
                     "SELECT COALESCE(MAX(ordem), -1) + 1 FROM cargos WHERE concurso_id = ?",
                     (contest_id,),
                 ).fetchone()[0]
-                cursor = db.execute(
-                    f"INSERT INTO cargos (concurso_id, {', '.join(fields)}, ordem) "
-                    f"VALUES ({', '.join('?' for _ in range(len(fields) + 2))})",
-                    [contest_id] + values + [order],
-                )
-                return int(cursor.lastrowid)
-            assignments = ", ".join(f"{field} = ?" for field in fields)
+                return self._insert_cargo(db, contest_id, cargo, order)
+            values = [str(cargo.get(field) or "").strip() for field in CARGO_FIELDS]
+            assignments = ", ".join(f"{field} = ?" for field in CARGO_FIELDS)
             db.execute(
                 f"UPDATE cargos SET {assignments} WHERE id = ? AND concurso_id = ?",
                 values + [cargo_id, contest_id],
@@ -393,7 +393,14 @@ class Database:
             )
 
     def export_json(self, destination: Path | str) -> None:
+        target = Path(destination)
+        for source in (self.path, Path(f"{self.path}-wal"), Path(f"{self.path}-shm")):
+            if target.resolve() == source.resolve() or (
+                target.exists() and source.exists() and target.samefile(source)
+            ):
+                raise ValueError("Escolha um arquivo de backup diferente dos arquivos do banco de dados.")
         with self._connect() as db:
+            db.execute("BEGIN")
             backup_fields = ["id"] + list(CONTEST_FIELDS) + ["created_at", "updated_at"]
             contests = [
                 {field: row[field] for field in backup_fields}
@@ -414,21 +421,47 @@ class Database:
             "cargos": cargos,
             "configuracoes": settings,
         }
-        Path(destination).write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+        output = NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=target.parent, suffix=".tmp", delete=False
         )
+        temporary = Path(output.name)
+        try:
+            with output:
+                json.dump(payload, output, ensure_ascii=False, indent=2)
+            temporary.replace(target)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def import_json(self, source: Path | str) -> None:
-        payload = json.loads(Path(source).read_text(encoding="utf-8"))
-        if payload.get("schema_version") != 1:
+        payload = json.loads(Path(source).read_text(encoding="utf-8-sig"))
+        if not isinstance(payload, dict):
+            raise ValueError("O backup precisa ser um objeto JSON.")
+        if type(payload.get("schema_version")) is not int or payload["schema_version"] != 1:
             raise ValueError("Versão de backup não reconhecida.")
-        contests = payload.get("concursos", [])
-        disciplines = payload.get("disciplinas", [])
-        topics = payload.get("topicos", [])
+        contests = payload.get("concursos")
+        disciplines = payload.get("disciplinas")
+        topics = payload.get("topicos")
         cargos = payload.get("cargos", [])
         settings = payload.get("configuracoes", {})
-        if not all(isinstance(x, list) for x in (contests, disciplines, topics, cargos)):
-            raise ValueError("Estrutura do backup inválida.")
+        for key, rows, parent_id in (
+            ("concursos", contests, None),
+            ("disciplinas", disciplines, "concurso_id"),
+            ("topicos", topics, "disciplina_id"),
+            ("cargos", cargos, "concurso_id"),
+        ):
+            if not isinstance(rows, list):
+                raise ValueError(f"A seção '{key}' do backup precisa ser uma lista.")
+            for row in rows:
+                if (
+                    not isinstance(row, dict)
+                    or not isinstance(row.get("nome"), str)
+                    or not row["nome"].strip()
+                    or type(row.get("id")) is not int
+                    or (parent_id and type(row.get(parent_id)) is not int)
+                ):
+                    raise ValueError(f"Registro inválido na seção '{key}' do backup.")
+        if not isinstance(settings, dict):
+            raise ValueError("A seção 'configuracoes' do backup precisa ser um objeto.")
         with self._connect() as db:
             db.execute("DELETE FROM topicos")
             db.execute("DELETE FROM cargos")
@@ -458,16 +491,10 @@ class Database:
                      row.get("nome_padronizado", ""), row.get("ordem", 0)),
                 )
             for row in cargos:
-                if not isinstance(row, dict):
-                    raise ValueError("Registro de cargo inválido no backup.")
-                fields = (
-                    "nome", "nivel_escolaridade", "requisitos", "salario_inicial",
-                    "salario_final", "beneficios", "jornada", "vagas", "localidade", "observacoes",
-                )
-                values = [row.get(field, "") for field in fields]
+                values = [row.get(field, "") for field in CARGO_FIELDS]
                 db.execute(
-                    f"INSERT INTO cargos (id, concurso_id, {', '.join(fields)}, ordem) "
-                    f"VALUES ({', '.join('?' for _ in range(len(fields) + 3))})",
+                    f"INSERT INTO cargos (id, concurso_id, {', '.join(CARGO_FIELDS)}, ordem) "
+                    f"VALUES ({', '.join('?' for _ in range(len(CARGO_FIELDS) + 3))})",
                     [row["id"], row["concurso_id"]] + values + [row.get("ordem", 0)],
                 )
             db.execute("DELETE FROM configuracoes")

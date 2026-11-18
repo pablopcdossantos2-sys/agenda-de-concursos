@@ -26,7 +26,8 @@ def _tokens(value: str) -> set[str]:
 
 
 def lexical_similarity(left: str, right: str) -> float:
-    a, b = normalize(left), normalize(right)
+    # SequenceMatcher pode retornar razões diferentes ao inverter os argumentos.
+    a, b = sorted((normalize(left), normalize(right)))
     if not a or not b:
         return 0.0
     if a == b:
@@ -38,46 +39,48 @@ def lexical_similarity(left: str, right: str) -> float:
     return min(1.0, 0.65 * jaccard + 0.35 * sequence)
 
 
-def topic_similarity(left: dict[str, Any], right: dict[str, Any]) -> float:
+def _same_canonical_name(left: dict[str, Any], right: dict[str, Any]) -> bool:
     canonical_left = normalize(left.get("nome_padronizado", ""))
     canonical_right = normalize(right.get("nome_padronizado", ""))
-    if canonical_left and canonical_right and canonical_left == canonical_right:
+    return bool(canonical_left and canonical_left == canonical_right)
+
+
+def topic_similarity(left: dict[str, Any], right: dict[str, Any]) -> float:
+    if _same_canonical_name(left, right):
         return 1.0
     return lexical_similarity(left.get("nome", ""), right.get("nome", ""))
 
 
 def _match_topics(left: list[dict[str, Any]], right: list[dict[str, Any]]) -> dict[str, Any]:
-    candidates: list[tuple[float, int, int]] = []
+    candidates: list[tuple[bool, float, int, int]] = []
     for i, a in enumerate(left):
         for j, b in enumerate(right):
             score = topic_similarity(a, b)
             if score >= 0.34:
-                candidates.append((score, i, j))
+                explicit = score == 1.0 and _same_canonical_name(a, b)
+                candidates.append((explicit, score, i, j))
     candidates.sort(reverse=True)
     used_left: set[int] = set()
     used_right: set[int] = set()
     matches: list[dict[str, Any]] = []
-    for score, i, j in candidates:
+    total_score = 0.0
+    for explicit, score, i, j in candidates:
         if i in used_left or j in used_right:
             continue
         used_left.add(i)
         used_right.add(j)
+        total_score += score
         matches.append({
             "topico_a": left[i].get("nome", ""),
             "topico_b": right[j].get("nome", ""),
             "similaridade": round(score * 100, 1),
-            "padronizado": bool(
-                normalize(left[i].get("nome_padronizado", ""))
-                and normalize(left[i].get("nome_padronizado", ""))
-                == normalize(right[j].get("nome_padronizado", ""))
-            ),
+            "padronizado": explicit,
         })
     unmatched_left = [item.get("nome", "") for i, item in enumerate(left) if i not in used_left]
     unmatched_right = [item.get("nome", "") for j, item in enumerate(right) if j not in used_right]
     denominator = max(len(left), len(right), 1)
-    score = sum(item["similaridade"] / 100 for item in matches) / denominator
     return {
-        "similaridade": score,
+        "similaridade": total_score / denominator,
         "matches": matches,
         "somente_a": unmatched_left,
         "somente_b": unmatched_right,

@@ -53,9 +53,24 @@ class SimilarityTests(unittest.TestCase):
         self.assertEqual(result["percentual"], 0.0)
 
     def test_lexical_similarity_is_symmetric(self):
-        a = "Administração pública: princípios e organização"
-        b = "Princípios da organização da administração pública"
-        self.assertAlmostEqual(lexical_similarity(a, b), lexical_similarity(b, a))
+        self.assertEqual(lexical_similarity("tide", "diet"), lexical_similarity("diet", "tide"))
+
+    def test_explicit_topic_match_takes_priority_over_identical_text(self):
+        left = [{
+            "nome": "Português",
+            "topicos": [{"nome": "Sintaxe", "nome_padronizado": "sintaxe"}],
+        }]
+        right = [{
+            "nome": "Português",
+            "topicos": [
+                {"nome": "Análise das orações", "nome_padronizado": "sintaxe"},
+                {"nome": "Sintaxe"},
+            ],
+        }]
+        result = compare_programs(left, right)
+        match = result["disciplinas"][0]["topicos"]["matches"][0]
+        self.assertEqual(match["topico_b"], "Análise das orações")
+        self.assertTrue(match["padronizado"])
 
 
 if __name__ == "__main__":

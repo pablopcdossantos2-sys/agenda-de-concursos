@@ -17,7 +17,7 @@ O nome original é preservado. A padronização não o substitui.
 1. Normalização textual: converte para minúsculas, remove acentos e pontuação e reduz espaços repetidos.
 2. Associação de disciplinas: compara os nomes normalizados por uma combinação de Jaccard de palavras e similaridade de sequência. O comparador associa nomes com pontuação lexical igual ou superior ao limiar interno de 0,55.
 3. Associação de tópicos: dentro de cada par de disciplinas, compara tópicos. Se ambos tiverem o mesmo nome padronizado não vazio, a correspondência é considerada explícita e recebe 100%. Caso contrário, usa similaridade lexical; pares com pontuação a partir de 0,34 são candidatos.
-4. Seleção de pares: a implementação escolhe correspondências de maior pontuação sem reutilizar o mesmo tópico em dois pares.
+4. Seleção de pares: a implementação prioriza nomes padronizados iguais. Para os tópicos restantes, escolhe as correspondências de maior pontuação sem reutilizar o mesmo tópico em dois pares.
 5. Agregação: calcula a cobertura ponderada de tópicos correspondentes em cada disciplina pareada. Disciplinas sem par contribuem com zero. A pontuação global pondera cada disciplina pela quantidade de tópicos da maior lista entre os dois concursos.
 
 A similaridade lexical combina Jaccard de conjuntos de palavras (65%) e SequenceMatcher (35%). Na pontuação por disciplina, 90% vêm da cobertura dos tópicos e 10% da semelhança dos nomes das disciplinas.

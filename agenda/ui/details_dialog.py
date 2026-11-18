@@ -22,6 +22,16 @@ GENERAL_FIELDS = (
 )
 
 
+def _plain_label(text: str, name: str, *, selectable: bool = False) -> QLabel:
+    label = QLabel(text)
+    label.setObjectName(name)
+    label.setTextFormat(Qt.TextFormat.PlainText)
+    label.setWordWrap(True)
+    if selectable:
+        label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+    return label
+
+
 class ContestDetailsDialog(QDialog):
     """Apresenta os dados gerais, cargos, fontes e conteúdo programático."""
 
@@ -55,13 +65,10 @@ class ContestDetailsDialog(QDialog):
         body.setContentsMargins(4, 4, 10, 4)
         body.setSpacing(12)
 
-        title = QLabel(str(self.contest.get("nome") or "Concurso sem nome"))
-        title.setObjectName("DetailsTitle")
-        title.setWordWrap(True)
+        title = _plain_label(str(self.contest.get("nome") or "Concurso sem nome"), "DetailsTitle")
         body.addWidget(title)
 
-        status = QLabel(str(self.contest.get("status") or "Sem Previsão"))
-        status.setObjectName("ContestCardStatus")
+        status = _plain_label(str(self.contest.get("status") or "Sem Previsão"), "ContestCardStatus")
         status.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status.setMaximumWidth(190)
         body.addWidget(status, 0, Qt.AlignmentFlag.AlignLeft)
@@ -133,10 +140,7 @@ class ContestDetailsDialog(QDialog):
         for row, (key, label) in enumerate(fields):
             caption = QLabel(label)
             caption.setObjectName("DetailCaption")
-            value = QLabel(self._display_value(key, self.contest.get(key)))
-            value.setObjectName("DetailValue")
-            value.setWordWrap(True)
-            value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            value = _plain_label(self._display_value(key, self.contest.get(key)), "DetailValue", selectable=True)
             grid.addWidget(caption, row, 0, Qt.AlignmentFlag.AlignTop)
             grid.addWidget(value, row, 1)
         layout.addLayout(grid)
@@ -187,10 +191,7 @@ class ContestDetailsDialog(QDialog):
 
         for key, label, address in available:
             row = QHBoxLayout()
-            value = QLabel(address)
-            value.setObjectName("DetailValue")
-            value.setWordWrap(True)
-            value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            value = _plain_label(address, "DetailValue", selectable=True)
             row.addWidget(value, 1)
             button = QPushButton(label)
             button.setObjectName("PrimaryButton")
@@ -235,9 +236,7 @@ class ContestDetailsDialog(QDialog):
             card_layout.setContentsMargins(11, 9, 11, 9)
             card_layout.setSpacing(5)
 
-            title = QLabel(str(cargo.get("nome") or "Cargo sem nome"))
-            title.setObjectName("DisciplineTitle")
-            title.setWordWrap(True)
+            title = _plain_label(str(cargo.get("nome") or "Cargo sem nome"), "DisciplineTitle")
             card_layout.addWidget(title)
 
             meta = []
@@ -245,9 +244,10 @@ class ContestDetailsDialog(QDialog):
                 value = str(cargo.get(field) or "").strip()
                 if value:
                     meta.append(value)
-            meta_label = QLabel(" · ".join(meta) if meta else "Escolaridade, vagas e jornada não informadas")
-            meta_label.setObjectName("DetailCaption")
-            meta_label.setWordWrap(True)
+            meta_label = _plain_label(
+                " · ".join(meta) if meta else "Escolaridade, vagas e jornada não informadas",
+                "DetailCaption",
+            )
             card_layout.addWidget(meta_label)
 
             salary = str(cargo.get("salario_inicial") or "").strip()
@@ -260,10 +260,7 @@ class ContestDetailsDialog(QDialog):
                 salary_text = "Remuneração não informada"
             if cargo.get("beneficios"):
                 salary_text += f" · Benefícios: {cargo['beneficios']}"
-            salary_label = QLabel(salary_text)
-            salary_label.setObjectName("DetailValue")
-            salary_label.setWordWrap(True)
-            card_layout.addWidget(salary_label)
+            card_layout.addWidget(_plain_label(salary_text, "DetailValue"))
 
             for label, key in (
                 ("Requisitos", "requisitos"),
@@ -271,10 +268,7 @@ class ContestDetailsDialog(QDialog):
             ):
                 value = str(cargo.get(key) or "").strip()
                 if value:
-                    field = QLabel(f"{label}: {value}")
-                    field.setObjectName("DetailValue")
-                    field.setWordWrap(True)
-                    card_layout.addWidget(field)
+                    card_layout.addWidget(_plain_label(f"{label}: {value}", "DetailValue"))
             self.cargos_content_layout.addWidget(card)
 
     def _manage_cargos(self) -> None:
@@ -299,31 +293,12 @@ class ContestDetailsDialog(QDialog):
             layout.addWidget(empty)
             return
 
-        blocks = [line.strip() for line in notes.replace("\r\n", "\n").split("\n") if line.strip()]
-        for line in blocks:
-            card = QFrame()
-            card.setObjectName("ObservationItem")
-            card_layout = QVBoxLayout(card)
-            card_layout.setContentsMargins(10, 7, 10, 7)
-            card_layout.setSpacing(2)
-            clean = line.lstrip("-• ").strip()
-            if ":" in clean and len(clean.split(":", 1)[0]) <= 45:
-                label_text, detail_text = clean.split(":", 1)
-                label = QLabel(label_text.strip())
-                label.setObjectName("DetailCaption")
-                value = QLabel(detail_text.strip())
-                value.setObjectName("DetailValue")
-                value.setWordWrap(True)
-                value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                card_layout.addWidget(label)
-                card_layout.addWidget(value)
-            else:
-                value = QLabel(clean)
-                value.setObjectName("DetailValue")
-                value.setWordWrap(True)
-                value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                card_layout.addWidget(value)
-            layout.addWidget(card)
+        card = QFrame()
+        card.setObjectName("ObservationItem")
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(10, 7, 10, 7)
+        card_layout.addWidget(_plain_label(notes, "DetailValue", selectable=True))
+        layout.addWidget(card)
 
     def _add_program_section(self, parent_layout: QVBoxLayout) -> None:
         _, layout = self._section("Conteúdo programático", parent_layout)
@@ -334,9 +309,9 @@ class ContestDetailsDialog(QDialog):
             return
 
         for discipline in self.program:
-            name = QLabel(str(discipline.get("nome") or "Disciplina sem nome"))
-            name.setObjectName("DisciplineTitle")
-            layout.addWidget(name)
+            layout.addWidget(_plain_label(
+                str(discipline.get("nome") or "Disciplina sem nome"), "DisciplineTitle"
+            ))
             topics = discipline.get("topicos") or []
             if not topics:
                 empty = QLabel("Sem tópicos cadastrados.")
@@ -348,8 +323,4 @@ class ContestDetailsDialog(QDialog):
                 text = f"• {topic_name}"
                 if canonical:
                     text += f"  ·  Padronizado: {canonical}"
-                item = QLabel(text)
-                item.setObjectName("DetailValue")
-                item.setWordWrap(True)
-                item.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-                layout.addWidget(item)
+                layout.addWidget(_plain_label(text, "DetailValue", selectable=True))

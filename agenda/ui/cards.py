@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from html import escape
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
 from agenda.services.dates import format_date_pt_br
 
@@ -54,6 +56,10 @@ class ContestCard(QFrame):
         self.date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.date_label.setWordWrap(False)
         layout.addWidget(self.date_label)
+        for label in (self.title_label, self.status_label, self.description_label, self.date_label):
+            label.setTextFormat(Qt.TextFormat.PlainText)
+        for label in (self.title_label, self.description_label, self.date_label):
+            label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self._update_text()
 
     @staticmethod
@@ -110,11 +116,13 @@ class ContestCard(QFrame):
             cargo_section,
             "Clique para abrir a ficha completa.",
         ]
-        self.setToolTip("\n".join(part for part in tooltip_parts if part))
+        tooltip = "<br>".join(escape(part).replace("\n", "<br>") for part in tooltip_parts if part)
+        self.setToolTip(f"<qt>{tooltip}</qt>")
         self.setFixedHeight(88 if self.compact else 104)
 
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
+        self.layout().activate()
         self.title_label.setText(
             QFontMetrics(self.title_label.font()).elidedText(
                 str(self._contest.get("nome") or "Concurso sem nome"),
