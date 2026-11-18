@@ -17,7 +17,7 @@ Aplicativo desktop para Windows, desenvolvido em Python, para organizar concurso
 - Mostrar/ocultar widget pela barra de ferramentas da janela principal ou pelo menu do ícone na área de notificação do Windows.
 - Ícone próprio do aplicativo, incluindo a bandeja do sistema.
 - Tema claro (padrão) e tema escuro, com paletas e textos de alto contraste.
-- O widget abre na área de trabalho, e a janela principal fica acessível pelo ícone da bandeja. A edição MSIX pode iniciar com o Windows quando o usuário a habilita nas configurações do sistema.
+- O widget abre na área de trabalho, e a janela principal fica acessível pelo botão **Abrir Agenda** e pelo ícone da bandeja. A edição MSIX pode iniciar com o Windows quando o usuário a habilita nas configurações do sistema.
 - Banco SQLite local e exportação/importação de backup JSON, incluindo perfil e cargos.
 - Funciona offline para as funcionalidades locais.
 

@@ -5,13 +5,13 @@ import sys
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QSystemTrayIcon
 
 from agenda.database import Database
 from agenda.ui.cards import ContestCard
@@ -67,12 +67,26 @@ def main() -> None:
         )
         database.set_setting("widget_width", "valor inválido")
 
-        window = MainWindow(database)
-        with patch.object(window, "tray_icon", Mock()):
+        with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=False):
+            window = MainWindow(database)
+            assert window.tray_icon.isVisible()
+            assert not window.tray_icon.icon().pixmap(16, 16).isNull()
+            assert not app.quitOnLastWindowClosed()
+        with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=True):
             window.launch()
             assert not window.isVisible() and window.desktop_widget.isVisible()
-        window._restore_main_window()
+        window.desktop_widget.open_agenda_button.click()
         app.processEvents()
+        assert window.isVisible()
+        window.close()
+        assert not window.isVisible() and window.tray_icon.isVisible()
+        window.tray_icon.contextMenu().actions()[0].trigger()
+        assert window.isVisible()
+        window.desktop_widget.hide()
+        with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=False):
+            window.close()
+            assert not window.isVisible() and window.desktop_widget.isVisible()
+        window.desktop_widget.open_agenda_button.click()
         assert window.isVisible()
         assert window.widget_width.value() == 390
 
@@ -138,7 +152,7 @@ def main() -> None:
         assert [label.text() for label in roles] == ["Médico · R$ 12.000,00 a R$ 14.000,00"]
         assert widget.cards_scroll.verticalScrollBar().maximum() == 0
         assert widget.count_label.text(), "O rodapé do widget deve informar a quantidade exibida."
-        assert not widget.findChildren(QPushButton), "O widget não deve ter botão interno para ocultá-lo."
+        assert widget.open_agenda_button.isVisible()
         assert "border-radius:16px" in widget.styleSheet()
         for index in range(12):
             database.save_cargo(contest_id, {"nome": f"Cargo de teste {index}", "interesse": True})

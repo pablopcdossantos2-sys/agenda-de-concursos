@@ -4,7 +4,9 @@ from datetime import date
 
 from PySide6.QtCore import Qt, QPoint, Signal
 from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLayout, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame, QHBoxLayout, QLabel, QLayout, QPushButton, QScrollArea, QVBoxLayout, QWidget,
+)
 
 from agenda.ui.assets import asset_path
 from agenda.ui.cards import ContestCard
@@ -15,6 +17,7 @@ class DesktopWidget(QWidget):
     """Widget flutuante com a agenda dos próximos concursos."""
 
     contest_selected = Signal(int)
+    open_agenda_requested = Signal()
 
     def __init__(self, database, parent=None):
         super().__init__(
@@ -76,6 +79,12 @@ class DesktopWidget(QWidget):
         self.count_label.setObjectName("WidgetSubtitle")
         self.count_label.setWordWrap(True)
         footer_layout.addWidget(self.count_label, 1)
+        self.open_agenda_button = QPushButton("Abrir Agenda")
+        self.open_agenda_button.setObjectName("WidgetOpenAgenda")
+        self.open_agenda_button.setAccessibleName("Abrir janela principal da Agenda de Concursos")
+        self.open_agenda_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.open_agenda_button.clicked.connect(self.open_agenda_requested.emit)
+        footer_layout.addWidget(self.open_agenda_button)
         root.addWidget(footer)
 
         self.apply_theme(database.get_setting("theme", "claro"))
@@ -111,6 +120,14 @@ class DesktopWidget(QWidget):
                 border-radius:8px; padding:8px 10px; font-size:14pt; font-weight:800;
             }}
             QLabel#WidgetSubtitle {{ background:transparent; color:{c['muted']}; font-size:8pt; }}
+            QPushButton#WidgetOpenAgenda {{
+                background:{c['chip_bg']}; color:{c['chip_text']};
+                border:1px solid {c['border']}; border-radius:6px;
+                padding:5px 9px; font-size:9pt; font-weight:600;
+            }}
+            QPushButton#WidgetOpenAgenda:hover, QPushButton#WidgetOpenAgenda:focus {{
+                border-color:#4D8DF0;
+            }}
             QFrame#ContestCard {{ background:{c['panel']}; border:1px solid {c['border']}; border-radius:10px; }}
             QFrame#ContestCard:hover, QFrame#ContestCard:focus {{
                 background:{c['card_hover']}; border:1px solid #4D8DF0;

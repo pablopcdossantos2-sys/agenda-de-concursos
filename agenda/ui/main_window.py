@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
-    QPushButton, QScrollArea, QSpinBox, QStackedWidget, QSystemTrayIcon,
+    QPushButton, QScrollArea, QSpinBox, QStackedWidget, QStyle, QSystemTrayIcon,
     QTableWidget, QTableWidgetItem, QToolBar, QTreeWidget, QTreeWidgetItem,
     QVBoxLayout, QWidget
 )
@@ -39,6 +39,7 @@ class MainWindow(QMainWindow):
             self.theme = "claro"
         self.desktop_widget = DesktopWidget(database)
         self.desktop_widget.contest_selected.connect(self._open_contest_details)
+        self.desktop_widget.open_agenda_requested.connect(self._restore_main_window)
         self.setWindowTitle("Agenda de Concursos")
         self.setWindowIcon(QIcon(str(asset_path("app_icon.svg"))))
         self.resize(1280, 820)
@@ -52,7 +53,7 @@ class MainWindow(QMainWindow):
     def launch(self) -> None:
         if self.database.get_setting("widget_auto_show", "1") == "1":
             self.show_desktop_widget(activate=False)
-        if self.tray_icon is None:
+        if not QSystemTrayIcon.isSystemTrayAvailable():
             self.show()
 
     def apply_theme(self, theme: str) -> None:
@@ -653,18 +654,13 @@ class MainWindow(QMainWindow):
 
     def _setup_tray(self) -> None:
         self._allow_quit = False
-        self.tray_icon = None
-        self.tray_widget_action = None
-        if not QSystemTrayIcon.isSystemTrayAvailable():
-            app = QApplication.instance()
-            if app is not None:
-                app.setQuitOnLastWindowClosed(True)
-            return
-
-        app = QApplication.instance()
-        if app is not None:
-            app.setQuitOnLastWindowClosed(False)
-        tray = QSystemTrayIcon(QIcon(str(asset_path("app_icon.svg"))), self)
+        QApplication.instance().setQuitOnLastWindowClosed(False)
+        pixmap = self.windowIcon().pixmap(32, 32)
+        icon = (
+            self.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView)
+            if pixmap.isNull() else QIcon(pixmap)
+        )
+        tray = QSystemTrayIcon(icon, self)
         tray.setToolTip("Agenda de Concursos")
         menu = QMenu(self)
         open_action = QAction("Abrir Agenda de Concursos", self)
@@ -679,8 +675,9 @@ class MainWindow(QMainWindow):
         menu.addAction(quit_action)
         tray.setContextMenu(menu)
         tray.activated.connect(self._on_tray_activated)
-        tray.show()
         self.tray_icon = tray
+        # Keep the icon requested even if Explorer has not created the tray yet.
+        tray.show()
         self._update_widget_actions()
 
     def _restore_main_window(self) -> None:
@@ -698,8 +695,7 @@ class MainWindow(QMainWindow):
     def _quit_application(self) -> None:
         self._allow_quit = True
         self.desktop_widget.hide()
-        if self.tray_icon is not None:
-            self.tray_icon.hide()
+        self.tray_icon.hide()
         self.hide()
         app = QApplication.instance()
         if app is not None:
@@ -1096,11 +1092,12 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Falha na importação", str(error))
 
     def closeEvent(self, event) -> None:
-        if self.tray_icon is not None and not self._allow_quit:
+        if not self._allow_quit:
+            if not QSystemTrayIcon.isSystemTrayAvailable() and not self.desktop_widget.isVisible():
+                self.show_desktop_widget(activate=False)
             self.hide()
             event.ignore()
             return
         self.desktop_widget.hide()
-        if self.tray_icon is not None:
-            self.tray_icon.hide()
+        self.tray_icon.hide()
         event.accept()

@@ -66,7 +66,7 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 6. Reduza a altura e confira se a rolagem vertical permite ler os cards que excedem o espaço disponível.
 7. Use **Ocultar widget** na barra de ferramentas da janela principal e depois **Mostrar widget**.
 8. Clique com o botão direito no ícone do Agenda de Concursos na área de notificação do Windows e teste **Mostrar/Ocultar widget**.
-9. Feche a janela principal pelo X. Confirme que ela é minimizada para a bandeja e que o menu do ícone permite reabri-la e sair do aplicativo.
+9. Feche a janela principal pelo X. Confirme que o ícone continua na bandeja. Reabra pelo menu do ícone e, depois, pelo botão **Abrir Agenda** no widget.
 10. Reinicie o aplicativo e confirme que quantidade, largura e altura permanecem salvas.
 
 ## 7. Temas, contraste e superfícies
@@ -107,4 +107,4 @@ Gere e instale o MSIX conforme o [guia de publicação](PUBLICACAO_MICROSOFT_STO
 
 ## Resultado da validação
 
-Registre data, versão do Windows, arquitetura, resolução/escala de tela, versão do Python (se aplicável), resultado de cada etapa, mensagens de erro e evidências. Não marque como validado aquilo que não foi testado em Windows real.
+Registre data, versão do Windows, arquitetura, resolução/escala de tela, versão do Pytho
