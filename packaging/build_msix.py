@@ -88,7 +88,7 @@ def main() -> None:
         build = Path(directory)
         subprocess.run(
             [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
-             "--name", APP_NAME, "--onedir", "--add-data", "assets;assets",
+             "--name", APP_NAME, "--onedir", "--add-data", f"{ROOT / 'assets'};assets",
              "--distpath", str(build), "--workpath", str(build / "work"),
              "--specpath", str(build), str(ROOT / "main.py")],
             cwd=ROOT,
