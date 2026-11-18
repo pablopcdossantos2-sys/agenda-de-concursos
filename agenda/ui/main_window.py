@@ -1057,8 +1057,9 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Preferências salvas", "As configurações foram atualizadas.")
 
     def _export_backup(self) -> None:
+        suggested_name = f"agenda-de-concursos-backup-{date.today():%Y-%m-%d}.json"
         path, _ = QFileDialog.getSaveFileName(
-            self, "Exportar backup", "agenda-de-concursos-backup.json", "Arquivo JSON (*.json)"
+            self, "Exportar backup", suggested_name, "Arquivo JSON (*.json)"
         )
         if not path:
             return
