@@ -4,7 +4,7 @@ from datetime import date
 
 from PySide6.QtCore import Qt, QPoint, Signal
 from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QHBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QLayout, QScrollArea, QVBoxLayout, QWidget
 
 from agenda.ui.assets import asset_path
 from agenda.ui.cards import ContestCard
@@ -62,6 +62,7 @@ class DesktopWidget(QWidget):
         self.cards_host = QWidget()
         self.cards_host.setObjectName("WidgetCardsHost")
         self.cards_layout = QVBoxLayout(self.cards_host)
+        self.cards_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
         self.cards_layout.setContentsMargins(0, 0, 0, 0)
         self.cards_layout.setSpacing(7)
         self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -196,12 +197,14 @@ class DesktopWidget(QWidget):
             card = ContestCard(contest, compact=True, parent=self.cards_host)
             card.clicked.connect(self.contest_selected.emit)
             self.cards_layout.addWidget(card)
+            card.show()
 
         if not eligible:
             empty = QLabel("Nenhum concurso futuro ou sem data de prova cadastrado.")
             empty.setObjectName("WidgetSubtitle")
             empty.setWordWrap(True)
             self.cards_layout.addWidget(empty)
+            empty.show()
 
         omitted = max(0, len(eligible) - len(visible))
         if omitted:

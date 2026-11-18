@@ -150,6 +150,11 @@ def main() -> None:
         app.processEvents()
         assert widget.cards_scroll.verticalScrollBar().maximum() > 0
         assert not widget.cards_scroll.horizontalScrollBar().isVisible()
+        compact = widget.cards_layout.itemAt(0).widget()
+        roles = compact.findChildren(QLabel, "ContestCardInterest")
+        assert len(roles) == 13
+        widget.cards_scroll.ensureWidgetVisible(roles[-1])
+        assert widget.cards_scroll.verticalScrollBar().value() > 0
 
         widget.hide()
         window._update_widget_actions()

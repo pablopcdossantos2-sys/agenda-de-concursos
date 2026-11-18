@@ -45,6 +45,7 @@ class ContestCard(QFrame):
 
         cargos = contest.get("cargos") or []
         if compact:
+            self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
             lines = []
             for key, caption in (
                 ("inscricoes_inicio", "Início das inscrições"),
