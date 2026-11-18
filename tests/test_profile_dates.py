@@ -32,6 +32,12 @@ class ProfileAndDateTests(unittest.TestCase):
         prompt = build_extraction_prompt({})
         self.assertIn("Extraia todos os cargos do edital", prompt)
 
+    def test_extraction_prompt_requests_concise_card_title_and_plain_links(self):
+        prompt = build_extraction_prompt()
+        self.assertIn('"nome": "TRT da 4ª Região - FCC - 2027"', prompt)
+        self.assertIn("Órgão ou autarquia - Banca - Ano", prompt)
+        self.assertIn("endereços completos HTTP/HTTPS como texto simples", prompt)
+
     def test_date_input_and_display_formats(self):
         self.assertEqual(parse_user_date("12/11/2026"), "2026-11-12")
         self.assertEqual(parse_user_date("2026-11-12"), "2026-11-12")

@@ -4,7 +4,7 @@ from datetime import date
 
 from PySide6.QtCore import Qt, QPoint, Signal
 from PySide6.QtGui import QGuiApplication, QIcon
-from PySide6.QtWidgets import QFrame, QLabel, QVBoxLayout, QHBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QLabel, QScrollArea, QVBoxLayout, QHBoxLayout, QWidget
 
 from agenda.ui.assets import asset_path
 from agenda.ui.cards import ContestCard
@@ -12,7 +12,7 @@ from agenda.ui.styles import THEMES
 
 
 class DesktopWidget(QWidget):
-    """Widget flutuante de cards, sem botões internos ou barras de rolagem."""
+    """Widget flutuante com a agenda dos próximos concursos."""
 
     contest_selected = Signal(int)
 
@@ -65,7 +65,13 @@ class DesktopWidget(QWidget):
         self.cards_layout.setContentsMargins(0, 0, 0, 0)
         self.cards_layout.setSpacing(7)
         self.cards_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        root.addWidget(self.cards_host, 1)
+        self.cards_scroll = QScrollArea()
+        self.cards_scroll.setWidgetResizable(True)
+        self.cards_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.cards_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.cards_scroll.setAccessibleName("Próximos concursos")
+        self.cards_scroll.setWidget(self.cards_host)
+        root.addWidget(self.cards_scroll, 1)
 
         footer = QFrame()
         footer.setObjectName("WidgetFooter")
@@ -113,7 +119,9 @@ class DesktopWidget(QWidget):
             }}
             QLabel#ContestCardTitle {{ background:transparent; color:{c['text']}; font-weight:700; font-size:9pt; }}
             QLabel#ContestCardDescription, QLabel#ContestCardMeta {{
-                background:transparent; color:{c['muted']}; font-size:8pt; }}
+                background:transparent; color:{c['text']}; font-size:9pt; }}
+            QLabel#ContestCardInterest {{
+                background:transparent; color:{c['chip_text']}; font-size:9pt; font-weight:700; }}
             QLabel#ContestCardStatus {{ background:{c['chip_bg']}; color:{c['chip_text']};
                 border:1px solid {c['border']}; border-radius:7px; padding:1px 6px;
                 font-size:7pt; font-weight:700; }}
@@ -166,6 +174,7 @@ class DesktopWidget(QWidget):
             item = self.cards_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
+                widget.hide()
                 widget.deleteLater()
 
     def refresh(self) -> None:
@@ -180,11 +189,7 @@ class DesktopWidget(QWidget):
             if not event_date or event_date >= today:
                 eligible.append(item)
 
-        # Exibe somente cards que cabem integralmente no espaço. Nenhuma rolagem é criada.
-        card_height = 88
-        available_height = max(card_height, self.height() - 138)
-        fit_count = max(1, available_height // (card_height + 7))
-        visible = eligible[: min(self.item_limit, fit_count)]
+        visible = eligible[:self.item_limit]
 
         for contest in visible:
             contest["cargos"] = self.database.list_cargos(int(contest["id"]))

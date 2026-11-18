@@ -22,7 +22,7 @@ def main() -> int:
     database = Database(data_dir / "agenda.db")
 
     window = MainWindow(database)
-    window.show()
+    window.launch()
 
     return app.exec()
 

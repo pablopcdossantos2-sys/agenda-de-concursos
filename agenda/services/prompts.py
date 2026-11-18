@@ -38,7 +38,7 @@ Analise cuidadosamente todos os PDFs, páginas, imagens e anexos fornecidos. Ext
 Sua tarefa é gerar uma ficha compatível com o software Agenda de Concursos. Extraia dados gerais, cargos e salários e, quando houver, disciplinas e tópicos. O conteúdo programático deve corresponder somente aos cargos incluídos em cargos.
 
 REGRAS DE EXTRAÇÃO
-1. Preserve a denominação oficial do concurso, do órgão, da banca e da localidade.
+1. Em `concurso.nome`, use um título curto no formato `Órgão ou autarquia - Banca - Ano`, por exemplo `TRT da 4ª Região - FCC - 2027`. Use o órgão cujos cargos serão providos, com sigla ou nome curto reconhecível, e o ano do processo seletivo conforme a fonte. Omita banca ou ano quando não estiverem confirmados. Nunca use a ementa do edital, expressões genéricas como "Concurso Público para o Provimento de Cargos do Quadro Permanente de Pessoal" ou número do edital no título. Preserve as denominações oficiais nos campos `orgao`, `banca` e `localidade`.
 2. Extraia separadamente cada cargo ou especialidade relevante, com seus próprios requisitos, escolaridade, remuneração, benefícios, jornada, vagas e localidade.
 3. Associe cada faixa salarial ao cargo correto. Preserve a forma de remuneração e a unidade como aparecem na fonte; não misture remuneração inicial e final, salário-base, gratificações ou benefícios.
 4. Quando a remuneração depender de jornada, especialidade, titulação ou lotação, registre essa condição em requisitos ou observacoes.
@@ -47,7 +47,7 @@ REGRAS DE EXTRAÇÃO
 7. Use "Edital publicado" somente quando o edital estiver efetivamente publicado; use "Previsto" quando a fonte indicar previsão concreta; nos demais casos use "Sem Previsão".
 8. Separe o conteúdo programático por disciplina. Cadastre cada item/subitem como tópico individual, preservando a redação original sempre que possível.
 9. Associe o conteúdo programático aos cargos filtrados. Se o edital trouxer conteúdos separados por cargo, não os misture.
-10. Inclua links somente quando identificados na fonte ou fornecidos pelo usuário. Não crie URLs.
+10. Preencha `url_edital` com o link direto do edital e `url_oficial` com o link do site oficial do processo. Use somente endereços completos HTTP/HTTPS como texto simples, sem Markdown, legendas, espaços ou quebras de linha. Quando houver apenas o nome do site ou a indicação "clique aqui" sem destino disponível, use "". Não adivinhe o endereço.
 11. Organize observacoes em frases curtas ou itens separados, registrando trechos ilegíveis, divergências e condições importantes.
 12. Defina prioridade como false. O usuário poderá alterá-la depois.
 13. Não inclua dados pessoais de candidatos, números de documentos, endereços residenciais, telefones ou outras informações privadas encontradas incidentalmente no documento.
@@ -60,7 +60,7 @@ Retorne apenas um objeto JSON válido, sem introdução, sem comentários e sem 
 {
   "schema_version": 1,
   "concurso": {
-    "nome": "Nome oficial do concurso ou processo seletivo",
+    "nome": "TRT da 4ª Região - FCC - 2027",
     "orgao": "Órgão ou instituição",
     "cargo": "",
     "banca": "Banca organizadora",

@@ -6,7 +6,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout
 
-from agenda.services.dates import format_date_pt_br
+from agenda.services.cargos import format_cargo_salary
+from agenda.services.dates import format_date_input, format_date_pt_br
 
 
 class ContestCard(QFrame):
@@ -17,14 +18,13 @@ class ContestCard(QFrame):
     def __init__(self, contest: dict, compact: bool = False, parent=None):
         super().__init__(parent)
         self.contest_id = int(contest["id"])
-        self.compact = compact
         self._contest = dict(contest)
+        self._elided_labels: list[tuple[QLabel, str]] = []
         self.setObjectName("ContestCard")
         self.setProperty("compact", "true" if compact else "false")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setAccessibleName(f"Abrir ficha do concurso {contest.get('nome', 'Concurso')}")
-        self.setToolTip("Clique para abrir a ficha completa deste concurso.")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
@@ -33,34 +33,62 @@ class ContestCard(QFrame):
         title_row = QHBoxLayout()
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(8)
-        self.title_label = QLabel()
-        self.title_label.setObjectName("ContestCardTitle")
-        self.title_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        name = str(contest.get("nome") or "Concurso sem nome")
+        self.title_label = self._label(name, "ContestCardTitle", elide=True)
         title_row.addWidget(self.title_label, 1)
 
-        self.status_label = QLabel()
-        self.status_label.setObjectName("ContestCardStatus")
+        self.status_label = self._label(str(contest.get("status") or "Sem Previsão"), "ContestCardStatus")
+        self.status_label.setWordWrap(False)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         title_row.addWidget(self.status_label, 0, Qt.AlignmentFlag.AlignRight)
         layout.addLayout(title_row)
 
-        self.description_label = QLabel()
-        self.description_label.setObjectName("ContestCardDescription")
-        self.description_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.description_label.setWordWrap(False)
-        layout.addWidget(self.description_label)
+        cargos = contest.get("cargos") or []
+        if compact:
+            lines = []
+            for key, caption in (
+                ("inscricoes_inicio", "Início das inscrições"),
+                ("inscricoes_fim", "Fim das inscrições"),
+                ("data_prova", "Data da prova"),
+            ):
+                value = format_date_input(contest.get(key))
+                line = f"{caption}: {value or 'Não informada'}"
+                layout.addWidget(self._label(line, "ContestCardMeta"))
+                lines.append(line)
+            roles = [
+                f"{cargo['nome']} · {format_cargo_salary(cargo)}"
+                for cargo in cargos if cargo.get("interesse")
+            ]
+            if roles:
+                layout.addSpacing(4)
+                for role in roles:
+                    layout.addWidget(self._label(role, "ContestCardInterest"))
+            else:
+                layout.addWidget(self._label("Nenhum cargo marcado como de interesse", "ContestCardMeta"))
+            tooltip_parts = [name, *lines, *roles]
+        else:
+            description = self._description()
+            dates = self._date_label(contest)
+            layout.addWidget(self._label(description, "ContestCardDescription", elide=True))
+            layout.addWidget(self._label(dates, "ContestCardMeta", elide=True))
+            tooltip_parts = [
+                name, description, dates,
+                *(f"{cargo['nome']} · {format_cargo_salary(cargo)}" for cargo in cargos),
+            ]
+            self.setFixedHeight(104)
+        tooltip = "<br>".join(escape(part).replace("\n", "<br>") for part in tooltip_parts)
+        self.setToolTip(f"<qt>{tooltip}</qt>")
 
-        self.date_label = QLabel()
-        self.date_label.setObjectName("ContestCardMeta")
-        self.date_label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.date_label.setWordWrap(False)
-        layout.addWidget(self.date_label)
-        for label in (self.title_label, self.status_label, self.description_label, self.date_label):
-            label.setTextFormat(Qt.TextFormat.PlainText)
-        for label in (self.title_label, self.description_label, self.date_label):
+    def _label(self, text: str, name: str, *, elide: bool = False) -> QLabel:
+        label = QLabel(text)
+        label.setObjectName(name)
+        label.setTextFormat(Qt.TextFormat.PlainText)
+        label.setWordWrap(not elide)
+        label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        if elide:
             label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
-        self._update_text()
+            self._elided_labels.append((label, text))
+        return label
 
     @staticmethod
     def _date_label(contest: dict) -> str:
@@ -98,49 +126,13 @@ class ContestCard(QFrame):
             parts.append(f"Banca: {bank}")
         return "  •  ".join(parts) or "Órgão e cargo não informados"
 
-    def _update_text(self) -> None:
-        name = str(self._contest.get("nome") or "Concurso sem nome")
-        self.title_label.setText(name)
-        self.status_label.setText(str(self._contest.get("status") or "Sem Previsão"))
-        self.description_label.setText(self._description())
-        self.date_label.setText(self._date_label(self._contest))
-        cargo_tooltip = "\n".join(
-            f"{item.get('nome', '')} — {item.get('salario_inicial') or 'Remuneração não informada'}"
-            for item in (self._contest.get("cargos") or [])
-        )
-        cargo_section = f"Cargos e salários:\n{cargo_tooltip}" if cargo_tooltip else ""
-        tooltip_parts = [
-            name,
-            self._description(),
-            self._date_label(self._contest),
-            cargo_section,
-            "Clique para abrir a ficha completa.",
-        ]
-        tooltip = "<br>".join(escape(part).replace("\n", "<br>") for part in tooltip_parts if part)
-        self.setToolTip(f"<qt>{tooltip}</qt>")
-        self.setFixedHeight(88 if self.compact else 104)
-
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self.layout().activate()
-        self.title_label.setText(
-            QFontMetrics(self.title_label.font()).elidedText(
-                str(self._contest.get("nome") or "Concurso sem nome"),
-                Qt.TextElideMode.ElideRight, max(20, self.title_label.width())
-            )
-        )
-        self.description_label.setText(
-            QFontMetrics(self.description_label.font()).elidedText(
-                self._description(), Qt.TextElideMode.ElideRight,
-                max(20, self.description_label.width())
-            )
-        )
-        self.date_label.setText(
-            QFontMetrics(self.date_label.font()).elidedText(
-                self._date_label(self._contest), Qt.TextElideMode.ElideRight,
-                max(20, self.date_label.width())
-            )
-        )
+        for label, text in self._elided_labels:
+            label.setText(QFontMetrics(label.font()).elidedText(
+                text, Qt.TextElideMode.ElideRight, label.width()
+            ))
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:

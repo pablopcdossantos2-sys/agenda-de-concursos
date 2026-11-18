@@ -109,6 +109,7 @@ class Database:
                     vagas TEXT NOT NULL DEFAULT '',
                     localidade TEXT NOT NULL DEFAULT '',
                     observacoes TEXT NOT NULL DEFAULT '',
+                    interesse INTEGER NOT NULL DEFAULT 0 CHECK (interesse IN (0, 1)),
                     ordem INTEGER NOT NULL DEFAULT 0
                 );
 
@@ -117,6 +118,12 @@ class Database:
                 CREATE INDEX IF NOT EXISTS idx_topicos_disciplina ON topicos(disciplina_id);
                 """
             )
+            db.execute("BEGIN IMMEDIATE")
+            if "interesse" not in {row["name"] for row in db.execute("PRAGMA table_info(cargos)")}:
+                db.execute(
+                    "ALTER TABLE cargos ADD COLUMN interesse INTEGER NOT NULL DEFAULT 0 "
+                    "CHECK (interesse IN (0, 1))"
+                )
 
     @staticmethod
     def _dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
@@ -223,9 +230,9 @@ class Database:
     def _insert_cargo(db: sqlite3.Connection, contest_id: int, cargo: dict[str, Any], order: int) -> int:
         values = [str(cargo.get(field) or "").strip() for field in CARGO_FIELDS]
         cursor = db.execute(
-            f"INSERT INTO cargos (concurso_id, {', '.join(CARGO_FIELDS)}, ordem) "
-            f"VALUES ({', '.join('?' for _ in range(len(CARGO_FIELDS) + 2))})",
-            [contest_id] + values + [order],
+            f"INSERT INTO cargos (concurso_id, {', '.join(CARGO_FIELDS)}, interesse, ordem) "
+            f"VALUES ({', '.join('?' for _ in range(len(CARGO_FIELDS) + 3))})",
+            [contest_id, *values, int(cargo.get("interesse") in (True, 1)), order],
         )
         return int(cursor.lastrowid)
 
@@ -268,9 +275,11 @@ class Database:
                 return self._insert_cargo(db, contest_id, cargo, order)
             values = [str(cargo.get(field) or "").strip() for field in CARGO_FIELDS]
             assignments = ", ".join(f"{field} = ?" for field in CARGO_FIELDS)
+            interest = int(cargo["interesse"] in (True, 1)) if "interesse" in cargo else None
             db.execute(
-                f"UPDATE cargos SET {assignments} WHERE id = ? AND concurso_id = ?",
-                values + [cargo_id, contest_id],
+                f"UPDATE cargos SET {assignments}, interesse = COALESCE(?, interesse) "
+                "WHERE id = ? AND concurso_id = ?",
+                [*values, interest, cargo_id, contest_id],
             )
             return cargo_id
 
@@ -493,9 +502,10 @@ class Database:
             for row in cargos:
                 values = [row.get(field, "") for field in CARGO_FIELDS]
                 db.execute(
-                    f"INSERT INTO cargos (id, concurso_id, {', '.join(CARGO_FIELDS)}, ordem) "
-                    f"VALUES ({', '.join('?' for _ in range(len(CARGO_FIELDS) + 3))})",
-                    [row["id"], row["concurso_id"]] + values + [row.get("ordem", 0)],
+                    f"INSERT INTO cargos (id, concurso_id, {', '.join(CARGO_FIELDS)}, interesse, ordem) "
+                    f"VALUES ({', '.join('?' for _ in range(len(CARGO_FIELDS) + 4))})",
+                    [row["id"], row["concurso_id"], *values,
+                     int(row.get("interesse") in (True, 1)), row.get("ordem", 0)],
                 )
             db.execute("DELETE FROM configuracoes")
             for key, value in settings.items():

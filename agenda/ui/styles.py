@@ -113,6 +113,10 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QLabel#SectionTitle {{ color: {c['text']}; font-size: 11pt; font-weight: 700; }}
     QLabel#DetailCaption {{ color: {c['muted']}; font-size: 9pt; font-weight: 600; }}
     QLabel#DetailValue {{ color: {c['text']}; font-size: 9pt; }}
+    QLabel#CargoInterest {{
+        background: {c['chip_bg']}; color: {c['chip_text']}; border-radius: 6px;
+        padding: 3px 8px; font-weight: 700;
+    }}
     QLabel#DisciplineTitle {{ color: {c['text']}; font-size: 10pt; font-weight: 700; padding-top: 4px; }}
     QPushButton {{
         background: {c['secondary']}; color: {c['text']}; border: 1px solid {c['border']};
@@ -134,6 +138,15 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QPushButton:focus, QPushButton#NavButton:focus, QPushButton#PrimaryButton:focus,
     QPushButton#DangerButton:focus {{
         border: 1px solid #4D8DF0;
+    }}
+    QPushButton#EducationOption {{
+        border: 2px solid {c['muted']}; padding: 10px 14px;
+    }}
+    QPushButton#EducationOption:checked {{
+        background: {c['selection']}; color: {c['selection_text']}; border-color: #2864C5;
+    }}
+    QPushButton#EducationOption:focus {{
+        border-color: #4D8DF0;
     }}
     QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {{
         background: {c['input']}; color: {c['text']}; border: 1px solid {c['border']};

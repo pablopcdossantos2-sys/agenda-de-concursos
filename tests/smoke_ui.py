@@ -5,16 +5,17 @@ import sys
 import tempfile
 from datetime import date, timedelta
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton, QScrollBar
+from PySide6.QtWidgets import QApplication, QLabel, QMessageBox, QPushButton
 
 from agenda.database import Database
 from agenda.ui.cards import ContestCard
+from agenda.ui.cargo_dialogs import CargoManagerDialog
 from agenda.ui.details_dialog import ContestDetailsDialog
 from agenda.ui.main_window import MainWindow
 from agenda.services.prompts import build_extraction_prompt
@@ -36,7 +37,8 @@ def main() -> None:
             "inscricoes_fim": (exam_date - timedelta(days=7)).isoformat(),
             "data_prova": exam_date.isoformat(),
             "localidade": "Brasil",
-            "url_edital": "https://example.org/edital",
+            "url_edital": "[Edital](<https://example.org/edital.pdf>)",
+            "url_oficial": "Site oficial: //example.org/\n concursos",
             "observacoes": notes,
         })
         database.replace_cargos(contest_id, [{
@@ -44,8 +46,15 @@ def main() -> None:
             "nivel_escolaridade": "Superior",
             "requisitos": "Graduação em Medicina e CRM",
             "salario_inicial": "R$ 12.000,00",
+            "salario_final": "R$ 14.000,00",
             "jornada": "20 horas semanais",
-        }])
+        }, {"nome": "Enfermeiro", "salario_inicial": "R$ 8.000,00"}])
+        manager = CargoManagerDialog(database.list_cargos(contest_id))
+        manager.interest_button.click()
+        assert "De interesse" in manager.list_widget.item(0).text()
+        assert "De interesse" not in manager.list_widget.item(1).text()
+        database.replace_cargos(contest_id, manager.cargos())
+        manager.close()
         database.save_user_profile({
             "niveis_escolaridade": ["Superior"],
             "cargos_desejados": ["Médico"],
@@ -59,8 +68,21 @@ def main() -> None:
         database.set_setting("widget_width", "valor inválido")
 
         window = MainWindow(database)
-        window.show()
+        with (
+            patch.object(window, "tray_icon", Mock()),
+            patch("agenda.ui.main_window.sys.platform", "win32"),
+            patch("agenda.ui.main_window.enable_startup") as enable_startup,
+        ):
+            window.launch()
+            enable_startup.assert_called_once()
+            assert not window.isVisible() and window.desktop_widget.isVisible()
+            database.set_setting("startup_enabled", "0")
+            enable_startup.reset_mock()
+            window.launch()
+            enable_startup.assert_not_called()
+        window._restore_main_window()
         app.processEvents()
+        assert window.isVisible()
         assert window.widget_width.value() == 390
 
         dashboard_cards = [
@@ -80,10 +102,26 @@ def main() -> None:
         assert detail.windowTitle().startswith("Ficha completa")
         assert detail.cargos and detail.cargos[0]["nome"] == "Médico"
         assert detail._normalized_url("www.example.org/edital").scheme() == "https"
+        assert detail._normalized_url("Disponível no site oficial") is None
+        assert detail._normalized_url("file:///C:/edital.pdf") is None
+        with patch("agenda.ui.details_dialog.QDesktopServices.openUrl", return_value=True) as open_url:
+            for title in ("Abrir edital", "Abrir site oficial"):
+                next(button for button in detail.findChildren(QPushButton) if button.text() == title).click()
+        assert [call.args[0].toString() for call in open_url.call_args_list] == [
+            "https://example.org/edital.pdf", "https://example.org/concursos",
+        ]
+        interest = detail.findChild(QLabel, "CargoInterest")
+        assert interest is not None and "Cargo de interesse" in interest.text()
         notes_label = next(label for label in detail.findChildren(QLabel) if label.text() == notes)
         assert notes_label.textFormat() == Qt.TextFormat.PlainText
         assert "Médico" in build_extraction_prompt(database.get_user_profile())
         assert window.profile_level_checks["Superior"].isChecked()
+        assert window.profile_level_checks["Superior"].text().startswith("✓")
+        fundamental = window.profile_level_checks["Fundamental"]
+        fundamental.click()
+        assert fundamental.isChecked() and fundamental.text().startswith("✓")
+        fundamental.click()
+        assert not fundamental.isChecked() and fundamental.text() == "Fundamental"
         detail.show()
         app.processEvents()
         detail.close()
@@ -95,10 +133,23 @@ def main() -> None:
         app.processEvents()
         assert widget.size().width() == 420 and widget.size().height() == 520
         assert widget.cards_layout.count() == 1, "O widget deve exibir o concurso em um card."
-        assert not widget.findChildren(QScrollBar), "O widget não deve conter barras de rolagem."
+        compact = widget.cards_layout.itemAt(0).widget()
+        dates = compact.findChildren(QLabel, "ContestCardMeta")
+        assert [label.text().split(":")[0] for label in dates] == [
+            "Início das inscrições", "Fim das inscrições", "Data da prova",
+        ]
+        roles = compact.findChildren(QLabel, "ContestCardInterest")
+        assert [label.text() for label in roles] == ["Médico · R$ 12.000,00 a R$ 14.000,00"]
+        assert widget.cards_scroll.verticalScrollBar().maximum() == 0
         assert widget.count_label.text(), "O rodapé do widget deve informar a quantidade exibida."
         assert not widget.findChildren(QPushButton), "O widget não deve ter botão interno para ocultá-lo."
         assert "border-radius:16px" in widget.styleSheet()
+        for index in range(12):
+            database.save_cargo(contest_id, {"nome": f"Cargo de teste {index}", "interesse": True})
+        widget.set_dimensions(320, 300)
+        app.processEvents()
+        assert widget.cards_scroll.verticalScrollBar().maximum() > 0
+        assert not widget.cards_scroll.horizontalScrollBar().isVisible()
 
         widget.hide()
         window._update_widget_actions()

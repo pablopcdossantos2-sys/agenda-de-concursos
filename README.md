@@ -6,18 +6,18 @@ Aplicativo desktop portátil para Windows, desenvolvido em Python, para organiza
 
 - Cadastro de concursos em qualquer fase: **Sem Previsão**, **Previsto** ou **Edital publicado**.
 - Fichas com órgão, banca, localidade, datas, links e observações.
-- Cadastro de vários cargos por concurso, cada um com escolaridade, requisitos, remuneração inicial/final, benefícios, jornada, vagas e lotação.
+- Cadastro de vários cargos por concurso, com marcação individual de interesse e destaque para a remuneração na ficha e no widget.
 - Seção **Perfil** para selecionar níveis de escolaridade, profissões e requisitos adicionais desejados.
 - Seção **Prompts** que gera instruções de extração personalizadas pelo perfil salvo, para filtrar cargos de editais em PDF ou imagens.
 - Cadastro por formulário convencional ou por JSON validado, incluindo cargos, salários, disciplinas e tópicos.
 - Datas apresentadas em português por extenso; os campos editáveis aceitam DD/MM/AAAA e o banco mantém ISO AAAA-MM-DD.
 - Cadastro individual de disciplinas e tópicos de cada concurso.
 - Comparação explicável de dois conteúdos programáticos, por disciplina e por tópico.
-- Widget flutuante de área de trabalho com cards, cantos arredondados e borda; quantidade, largura e altura configuráveis, sem botão interno ou barras de rolagem.
+- Widget flutuante com início e fim das inscrições, data da prova e remuneração dos cargos de interesse em linhas separadas. A rolagem vertical aparece quando o conteúdo ultrapassa a altura configurada.
 - Mostrar/ocultar widget pela barra de ferramentas da janela principal ou pelo menu do ícone na área de notificação do Windows.
 - Ícone próprio do aplicativo, incluindo a bandeja do sistema.
 - Tema claro (padrão) e tema escuro, com paletas e textos de alto contraste.
-- Opção para iniciar com o Windows, sem serviço ou registro permanente: o aplicativo cria um script na pasta Inicializar do usuário.
+- Inicialização com o Windows ativada por padrão na primeira execução. O widget abre na área de trabalho, e a janela principal fica acessível pelo ícone da bandeja.
 - Banco SQLite local e exportação/importação de backup JSON, incluindo perfil e cargos.
 - Funciona offline para as funcionalidades locais.
 
@@ -61,7 +61,7 @@ Copie a pasta dist/Agenda de Concursos para o local desejado. Extraia-a em uma p
 
 Os dados são armazenados localmente em SQLite. O aplicativo não envia fichas, perfis ou conteúdos para servidores. Faça backups periódicos pelo menu **Configurações**. O backup JSON contém fichas, cargos, disciplinas, tópicos e preferências do aplicativo.
 
-A opção de inicialização do Windows grava/remover um script .vbs na pasta Inicializar do usuário atual. Ela não altera serviços ou chaves de registro.
+A configuração de inicialização grava ou remove o script .vbs na pasta Inicializar do usuário atual. Desmarque **Iniciar automaticamente quando eu entrar no Windows** em **Configurações** para desativá-la.
 
 ## Como interpretar a comparação
 

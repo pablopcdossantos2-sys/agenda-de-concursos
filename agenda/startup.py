@@ -27,15 +27,15 @@ def enable_startup() -> Path:
     folder = startup_folder()
     folder.mkdir(parents=True, exist_ok=True)
     command = entry_command()
-    executable = _vbs_quote(command[0])
-    arguments = " ".join('"' + _vbs_quote(part) + '"' for part in command[1:])
-    full_command = f'"{executable}"' + (f" {arguments}" if arguments else "")
+    full_command = " ".join(f'"{part}"' for part in command)
     script = (
         'Set WshShell = CreateObject("WScript.Shell")\n'
         f'WshShell.Run "{_vbs_quote(full_command)}", 0, False\n'
     )
     destination = folder / STARTUP_FILENAME
-    destination.write_text(script, encoding="utf-8")
+    contents = script.replace("\n", "\r\n").encode("utf-16")
+    if not destination.exists() or destination.read_bytes() != contents:
+        destination.write_bytes(contents)
     return destination
 
 
@@ -48,6 +48,6 @@ def disable_startup() -> None:
 
 
 def startup_enabled() -> bool:
-    if sys.platform != "win32":
+    if sys.platform != "win32" or not os.environ.get("APPDATA"):
         return False
     return (startup_folder() / STARTUP_FILENAME).exists()

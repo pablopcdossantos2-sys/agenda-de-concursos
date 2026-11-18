@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from PySide6.QtCore import Qt, QUrl
@@ -9,6 +10,7 @@ from PySide6.QtWidgets import (
     QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
+from agenda.services.cargos import format_cargo_salary
 from agenda.services.dates import format_date_pt_br, format_datetime_pt_br
 from agenda.ui.cargo_dialogs import CargoManagerDialog
 
@@ -148,23 +150,30 @@ class ContestDetailsDialog(QDialog):
     @staticmethod
     def _normalized_url(address: str) -> QUrl | None:
         clean = (address or "").strip()
+        clean = re.sub(r"^(?:link(?: do edital)?|edital|site oficial)\s*:\s*", "", clean, flags=re.I)
+        markdown = re.fullmatch(r"\[[^\]]*\]\(\s*(.*?)\s*\)", clean, flags=re.S)
+        if markdown:
+            clean = markdown.group(1)
+        if (clean[:1], clean[-1:]) in {("<", ">"), ('"', '"'), ("'", "'")}:
+            clean = clean[1:-1].strip()
+        clean = re.sub(r"\s*\r?\n\s*", "", clean)
         if not clean:
             return None
-        if "://" not in clean:
+        if clean.startswith("//"):
+            clean = "https:" + clean
+        elif "://" not in clean:
             clean = "https://" + clean
-        url = QUrl(clean)
-        if not url.isValid() or url.scheme().lower() not in ("http", "https") or not url.host():
+        url = QUrl(clean, QUrl.ParsingMode.StrictMode)
+        host = url.host().rstrip(".")
+        if (
+            not url.isValid() or url.scheme() not in ("http", "https")
+            or not (host == "localhost" or "." in host or ":" in host)
+            or url.userInfo()
+        ):
             return None
         return url
 
-    def _open_link(self, address: str) -> None:
-        url = self._normalized_url(address)
-        if url is None:
-            QMessageBox.warning(
-                self, "Link inválido",
-                "O endereço salvo não é um link HTTP/HTTPS válido. Confira a URL na ficha do concurso.",
-            )
-            return
+    def _open_link(self, url: QUrl) -> None:
         opened = QDesktopServices.openUrl(url)
         if not opened:
             QGuiApplication.clipboard().setText(url.toString())
@@ -175,28 +184,26 @@ class ContestDetailsDialog(QDialog):
 
     def _add_link_section(self, parent_layout: QVBoxLayout) -> None:
         links = [
-            ("url_edital", "Abrir edital"),
-            ("url_oficial", "Abrir site oficial"),
+            ("url_edital", "Edital", "Abrir edital"),
+            ("url_oficial", "Site oficial", "Abrir site oficial"),
         ]
         _, layout = self._section("Links e fontes", parent_layout)
-        available = [
-            (key, label, str(self.contest.get(key) or "").strip())
-            for key, label in links if str(self.contest.get(key) or "").strip()
-        ]
-        if not available:
-            label = QLabel("Nenhum link de edital ou site oficial foi cadastrado.")
-            label.setObjectName("DetailCaption")
-            layout.addWidget(label)
-            return
-
-        for key, label, address in available:
+        for key, caption, label in links:
+            address = str(self.contest.get(key) or "").strip()
+            url = self._normalized_url(address)
             row = QHBoxLayout()
-            value = _plain_label(address, "DetailValue", selectable=True)
-            row.addWidget(value, 1)
-            button = QPushButton(label)
-            button.setObjectName("PrimaryButton")
-            button.clicked.connect(lambda checked=False, target=address: self._open_link(target))
-            row.addWidget(button)
+            if url is not None:
+                value = _plain_label(url.toDisplayString(), "DetailValue", selectable=True)
+                row.addWidget(value, 1)
+                button = QPushButton(label)
+                button.setObjectName("PrimaryButton")
+                button.clicked.connect(lambda checked=False, target=url: self._open_link(target))
+                row.addWidget(button)
+            elif address:
+                message = f"{caption}: endereço inválido. Edite a ficha e cole o link HTTP/HTTPS.\n{address}"
+                row.addWidget(_plain_label(message, "DetailCaption", selectable=True))
+            else:
+                row.addWidget(_plain_label(f"{caption}: link não informado.", "DetailCaption"))
             layout.addLayout(row)
 
     def _add_cargos_section(self, parent_layout: QVBoxLayout) -> None:
@@ -221,7 +228,8 @@ class ContestDetailsDialog(QDialog):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-        self.cargos_count.setText(f"{len(self.cargos)} cargo(s) registrado(s)")
+        interested = sum(bool(cargo.get("interesse")) for cargo in self.cargos)
+        self.cargos_count.setText(f"{len(self.cargos)} cargos · {interested} de interesse")
         if not self.cargos:
             empty = QLabel("Nenhum cargo ou faixa salarial cadastrada. Edite a ficha para incluir essas informações.")
             empty.setObjectName("DetailCaption")
@@ -229,7 +237,7 @@ class ContestDetailsDialog(QDialog):
             self.cargos_content_layout.addWidget(empty)
             return
 
-        for cargo in self.cargos:
+        for cargo in sorted(self.cargos, key=lambda item: not item.get("interesse")):
             card = QFrame()
             card.setObjectName("CargoDetailCard")
             card_layout = QVBoxLayout(card)
@@ -238,6 +246,9 @@ class ContestDetailsDialog(QDialog):
 
             title = _plain_label(str(cargo.get("nome") or "Cargo sem nome"), "DisciplineTitle")
             card_layout.addWidget(title)
+            if cargo.get("interesse"):
+                badge = _plain_label("★ Cargo de interesse", "CargoInterest")
+                card_layout.addWidget(badge, 0, Qt.AlignmentFlag.AlignLeft)
 
             meta = []
             for field in ("nivel_escolaridade", "vagas", "jornada", "localidade"):
@@ -250,14 +261,7 @@ class ContestDetailsDialog(QDialog):
             )
             card_layout.addWidget(meta_label)
 
-            salary = str(cargo.get("salario_inicial") or "").strip()
-            salary_final = str(cargo.get("salario_final") or "").strip()
-            if salary or salary_final:
-                salary_text = "Remuneração: " + (salary or "não informada")
-                if salary_final:
-                    salary_text += f" até {salary_final}"
-            else:
-                salary_text = "Remuneração não informada"
+            salary_text = f"Remuneração: {format_cargo_salary(cargo)}"
             if cargo.get("beneficios"):
                 salary_text += f" · Benefícios: {cargo['beneficios']}"
             card_layout.addWidget(_plain_label(salary_text, "DetailValue"))

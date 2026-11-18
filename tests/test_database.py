@@ -126,6 +126,36 @@ class DatabaseTests(unittest.TestCase):
             self.assertEqual(db.list_contests(), [])
             self.assertEqual(db.list_disciplines(contest_id), [])
 
+    def test_cargo_interest_survives_edit_backup_and_legacy_migration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            db = Database(root / "original.db")
+            contest_id = db.save_contest({"nome": "Prefeitura"})
+            db.replace_cargos(contest_id, [{"nome": "Médico", "salario_inicial": "R$ 12.000,00"}])
+            with db._connect() as connection:
+                connection.execute("ALTER TABLE cargos DROP COLUMN interesse")
+
+            db = Database(db.path)
+            cargo = db.list_cargos(contest_id)[0]
+            self.assertEqual(cargo["interesse"], 0)
+            db.save_cargo(contest_id, {**cargo, "interesse": True}, cargo["id"])
+            del cargo["interesse"]
+            db.save_cargo(contest_id, cargo, cargo["id"])
+            self.assertEqual(db.list_cargos(contest_id)[0]["interesse"], 1)
+
+            path = root / "backup.json"
+            db.export_json(path)
+            restored = Database(root / "restored.db")
+            restored.import_json(path)
+            self.assertEqual(restored.list_cargos(contest_id)[0]["interesse"], 1)
+            self.assertEqual(restored.list_cargos(contest_id)[0]["salario_inicial"], "R$ 12.000,00")
+
+            legacy = json.loads(path.read_text(encoding="utf-8"))
+            del legacy["cargos"][0]["interesse"]
+            path.write_text(json.dumps(legacy), encoding="utf-8")
+            restored.import_json(path)
+            self.assertEqual(restored.list_cargos(contest_id)[0]["interesse"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

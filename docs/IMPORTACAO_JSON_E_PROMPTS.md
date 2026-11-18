@@ -45,7 +45,7 @@ O objeto deve conter schema_version igual a 1 e um objeto concurso. O nome do co
 {
   "schema_version": 1,
   "concurso": {
-    "nome": "Concurso de exemplo",
+    "nome": "TRT da 4ª Região - FCC - 2027",
     "orgao": "Órgão público",
     "cargo": "",
     "banca": "Banca organizadora",

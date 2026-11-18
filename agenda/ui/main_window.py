@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from datetime import date
 from html import escape
 from pathlib import Path
@@ -48,8 +49,22 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._setup_tray()
         self._refresh_all()
-        if self.database.get_setting("widget_auto_show", "0") == "1":
-            self.show_desktop_widget()
+
+    def launch(self) -> None:
+        if self.database.get_setting("widget_auto_show", "1") == "1":
+            self.show_desktop_widget(activate=False)
+        if self.tray_icon is None:
+            self.show()
+        if sys.platform == "win32" and self.database.get_setting("startup_enabled", "1") == "1":
+            try:
+                enable_startup()
+                self.startup_check.setChecked(True)
+            except (OSError, RuntimeError) as error:
+                message = f"Não foi possível configurar a inicialização com o Windows. {error}"
+                if self.tray_icon is not None:
+                    self.tray_icon.showMessage("Agenda de Concursos", message)
+                else:
+                    self.statusBar().showMessage(message)
 
     def apply_theme(self, theme: str) -> None:
         self.theme = theme if theme in ("claro", "escuro") else "claro"
@@ -409,13 +424,19 @@ class MainWindow(QMainWindow):
         intro.setWordWrap(True)
         general_layout.addWidget(intro)
 
-        self.profile_level_checks: dict[str, QCheckBox] = {}
+        self.profile_level_checks: dict[str, QPushButton] = {}
         levels_row = QHBoxLayout()
         for level in EDUCATION_LEVELS:
-            check = QCheckBox(level)
+            check = QPushButton(level)
+            check.setObjectName("EducationOption")
+            check.setCheckable(True)
+            check.setAccessibleName(level)
+            check.setCursor(Qt.CursorShape.PointingHandCursor)
+            check.toggled.connect(
+                lambda selected, button=check, name=level: button.setText(f"✓  {name}" if selected else name)
+            )
             self.profile_level_checks[level] = check
-            levels_row.addWidget(check)
-        levels_row.addStretch()
+            levels_row.addWidget(check, 1)
         general_layout.addLayout(levels_row)
         layout.addWidget(general)
 
@@ -497,7 +518,8 @@ class MainWindow(QMainWindow):
 
         self.startup_check = QCheckBox("Iniciar automaticamente quando eu entrar no Windows")
         self.startup_check.setChecked(startup_enabled())
-        self.auto_widget_check = QCheckBox("Mostrar o widget automaticamente ao abrir o aplicativo")
+        self.startup_check.setEnabled(sys.platform == "win32")
+        self.auto_widget_check = QCheckBox("Mostrar o widget ao iniciar")
         general_layout.addWidget(self.startup_check)
         general_layout.addWidget(self.auto_widget_check)
         row = QGridLayout()
@@ -520,8 +542,8 @@ class MainWindow(QMainWindow):
         row.setColumnStretch(2, 1)
         general_layout.addLayout(row)
         dimensions_hint = QLabel(
-            "A quantidade de cards visíveis se ajusta à altura escolhida. "
-            "O widget não exibe barras de rolagem; aumente a altura para mostrar mais concursos."
+            "A janela principal pode ser aberta pelo ícone da bandeja. "
+            "Use a rolagem do widget quando os cards ultrapassarem a altura disponível."
         )
         dimensions_hint.setWordWrap(True)
         dimensions_hint.setObjectName("HintText")
@@ -555,7 +577,7 @@ class MainWindow(QMainWindow):
         return page
 
     def _sync_widget_controls(self) -> None:
-        self.auto_widget_check.setChecked(self.database.get_setting("widget_auto_show", "0") == "1")
+        self.auto_widget_check.setChecked(self.database.get_setting("widget_auto_show", "1") == "1")
         self.widget_count.setValue(self.desktop_widget.item_limit)
         self.widget_width.setValue(self.desktop_widget.widget_width)
         self.widget_height.setValue(self.desktop_widget.widget_height)
@@ -618,11 +640,12 @@ class MainWindow(QMainWindow):
         self.apply_theme(selected)
         self._refresh_contest_table()
 
-    def show_desktop_widget(self) -> None:
+    def show_desktop_widget(self, *, activate: bool = True) -> None:
         self.desktop_widget.refresh()
         self.desktop_widget.show()
         self.desktop_widget.raise_()
-        self.desktop_widget.activateWindow()
+        if activate:
+            self.desktop_widget.activateWindow()
         self._update_widget_actions()
 
     def _toggle_desktop_widget(self) -> None:

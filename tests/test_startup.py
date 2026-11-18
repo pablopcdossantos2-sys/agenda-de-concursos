@@ -12,12 +12,15 @@ class StartupTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="Agenda de Concursos ") as directory:
             with patch("agenda.startup.sys.platform", "win32"), patch.dict(
                 os.environ, {"APPDATA": directory}
-            ):
+            ), patch("agenda.startup.entry_command", return_value=(
+                r"C:\Área de Trabalho\Agenda de Concursos.exe",
+            )):
                 destination = enable_startup()
                 self.assertTrue(destination.exists())
                 self.assertEqual(destination.name, "Agenda de Concursos.vbs")
-                script = destination.read_text(encoding="utf-8")
+                script = destination.read_text(encoding="utf-16")
                 self.assertIn("WshShell.Run", script)
+                self.assertIn(r'""C:\Área de Trabalho\Agenda de Concursos.exe""', script)
                 self.assertIn(", 0, False", script)
                 self.assertTrue(startup_enabled())
 
