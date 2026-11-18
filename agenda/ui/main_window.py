@@ -358,6 +358,7 @@ class MainWindow(QMainWindow):
         self.compare_b = QComboBox()
         for combo in (self.compare_a, self.compare_b):
             combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setPlaceholderText("Selecione um concurso")
         selectors.addWidget(QLabel("Concurso A"))
         selectors.addWidget(self.compare_a, 1)
         selectors.addWidget(QLabel("Concurso B"))
@@ -802,10 +803,15 @@ class MainWindow(QMainWindow):
             for contest in self.database.list_contests():
                 combo.addItem(contest.get("nome", "Concurso"), contest["id"])
             index = combo.findData(current)
-            if index >= 0:
+            if combo is self.compare_b and combo.count() < 2:
+                combo.setCurrentIndex(-1)
+            elif index >= 0:
                 combo.setCurrentIndex(index)
-            elif combo is self.compare_b and combo.count() > 1:
-                combo.setCurrentIndex(1)
+            elif combo is self.compare_b:
+                first_id = combo.itemData(0)
+                combo.setCurrentIndex(int(first_id == self.compare_a.currentData()))
+            elif combo.count():
+                combo.setCurrentIndex(0)
 
     def _selected_contest_id(self) -> int | None:
         selected = self.contest_table.selectionModel().selectedRows()
