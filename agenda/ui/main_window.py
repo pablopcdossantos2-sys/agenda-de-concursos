@@ -6,8 +6,8 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QSignalBlocker, QSize
-from PySide6.QtGui import QAction, QColor, QIcon
+from PySide6.QtCore import Qt, QSignalBlocker, QSize, QUrl
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
@@ -21,10 +21,9 @@ from agenda.database import Database
 from agenda.services.dates import format_date_pt_br
 from agenda.services.profile import EDUCATION_LEVELS, profile_summary
 from agenda.services.similarity import compare_programs
-from agenda.startup import disable_startup, enable_startup, startup_enabled
 from agenda.ui.assets import asset_path
 from agenda.ui.cards import ContestCard
-from agenda.ui.code_dialogs import ContestCodeDialog, PromptDialog
+from agenda.ui.code_dialogs import ContestCodeDialog, PromptPage
 from agenda.ui.details_dialog import ContestDetailsDialog
 from agenda.ui.dialogs import ContestDialog, NameDialog, TopicDialog
 from agenda.ui.styles import theme_stylesheet
@@ -55,16 +54,6 @@ class MainWindow(QMainWindow):
             self.show_desktop_widget(activate=False)
         if self.tray_icon is None:
             self.show()
-        if sys.platform == "win32" and self.database.get_setting("startup_enabled", "1") == "1":
-            try:
-                enable_startup()
-                self.startup_check.setChecked(True)
-            except (OSError, RuntimeError) as error:
-                message = f"Não foi possível configurar a inicialização com o Windows. {error}"
-                if self.tray_icon is not None:
-                    self.tray_icon.showMessage("Agenda de Concursos", message)
-                else:
-                    self.statusBar().showMessage(message)
 
     def apply_theme(self, theme: str) -> None:
         self.theme = theme if theme in ("claro", "escuro") else "claro"
@@ -87,7 +76,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         prompts = QAction("Prompts", self)
-        prompts.triggered.connect(self._open_prompts)
+        prompts.triggered.connect(lambda: self.show_page("prompts"))
         toolbar.addAction(prompts)
 
         code = QAction("Inserir por JSON", self)
@@ -170,6 +159,8 @@ class MainWindow(QMainWindow):
         self.pages["contests"] = self._build_contests_page()
         self.pages["content"] = self._build_content_page()
         self.pages["compare"] = self._build_compare_page()
+        self.prompts_page = PromptPage()
+        self.pages["prompts"] = self.prompts_page
         self.pages["profile"] = self._build_profile_page()
         self.pages["settings"] = self._build_settings_page()
         for page in self.pages.values():
@@ -516,11 +507,11 @@ class MainWindow(QMainWindow):
         theme_row.addStretch()
         general_layout.addLayout(theme_row)
 
-        self.startup_check = QCheckBox("Iniciar automaticamente quando eu entrar no Windows")
-        self.startup_check.setChecked(startup_enabled())
-        self.startup_check.setEnabled(sys.platform == "win32")
         self.auto_widget_check = QCheckBox("Mostrar o widget ao iniciar")
-        general_layout.addWidget(self.startup_check)
+        if sys.platform == "win32":
+            startup = QPushButton("Abrir configurações de inicialização do Windows")
+            startup.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("ms-settings:startupapps")))
+            general_layout.addWidget(startup)
         general_layout.addWidget(self.auto_widget_check)
         row = QGridLayout()
         row.addWidget(QLabel("Quantidade de concursos no widget"), 0, 0)
@@ -583,16 +574,13 @@ class MainWindow(QMainWindow):
         self.widget_height.setValue(self.desktop_widget.widget_height)
 
     def show_page(self, key: str) -> None:
-        if key == "prompts":
-            self.nav_buttons[key].setChecked(False)
-            self._open_prompts()
-            return
         labels = {
             "dashboard": ("Visão geral", "Acompanhe seus objetivos e organize sua preparação."),
             "contests": ("Concursos", "Mantenha uma ficha para cada oportunidade de interesse."),
             "content": ("Conteúdo programático", "Estruture disciplinas e tópicos de cada concurso."),
             "compare": ("Comparar conteúdos", "Descubra quais assuntos se repetem entre diferentes seleções."),
             "profile": ("Perfil", "Defina os níveis de escolaridade e os cargos que você deseja encontrar."),
+            "prompts": ("Prompts", "Extração de informações de editais"),
             "settings": ("Configurações", "Ajuste a inicialização, o widget e seus backups locais."),
         }
         if key not in self.pages:
@@ -613,8 +601,8 @@ class MainWindow(QMainWindow):
             self._refresh_contest_combos(self.compare_a)
             self._refresh_contest_combos(self.compare_b)
 
-    def _open_prompts(self) -> None:
-        PromptDialog(self, self.database.get_user_profile()).exec()
+        elif key == "prompts":
+            self.prompts_page.set_profile(self.database.get_user_profile())
 
     def _add_contest_from_code(self) -> None:
         dialog = ContestCodeDialog(self)
@@ -1057,17 +1045,6 @@ class MainWindow(QMainWindow):
 
     def _save_settings(self) -> None:
         self.database.set_setting("theme", self.theme)
-        try:
-            if self.startup_check.isChecked():
-                enable_startup()
-                self.database.set_setting("startup_enabled", "1")
-            else:
-                if startup_enabled():
-                    disable_startup()
-                self.database.set_setting("startup_enabled", "0")
-        except Exception as error:
-            QMessageBox.warning(self, "Inicialização do Windows", str(error))
-            return
         count = self.widget_count.value()
         width = self.widget_width.value()
         height = self.widget_height.value()

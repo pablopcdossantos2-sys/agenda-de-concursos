@@ -68,18 +68,9 @@ def main() -> None:
         database.set_setting("widget_width", "valor inválido")
 
         window = MainWindow(database)
-        with (
-            patch.object(window, "tray_icon", Mock()),
-            patch("agenda.ui.main_window.sys.platform", "win32"),
-            patch("agenda.ui.main_window.enable_startup") as enable_startup,
-        ):
+        with patch.object(window, "tray_icon", Mock()):
             window.launch()
-            enable_startup.assert_called_once()
             assert not window.isVisible() and window.desktop_widget.isVisible()
-            database.set_setting("startup_enabled", "0")
-            enable_startup.reset_mock()
-            window.launch()
-            enable_startup.assert_not_called()
         window._restore_main_window()
         app.processEvents()
         assert window.isVisible()
@@ -132,11 +123,16 @@ def main() -> None:
         widget.show()
         app.processEvents()
         assert widget.size().width() == 420 and widget.size().height() == 520
+        assert not widget.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
+        assert widget.findChild(QLabel, "WidgetTitle").text() == "PRÓXIMOS CONCURSOS"
+        assert all(label.text() != "Datas de prova e oportunidades em aberto" for label in widget.findChildren(QLabel))
         assert widget.cards_layout.count() == 1, "O widget deve exibir o concurso em um card."
         compact = widget.cards_layout.itemAt(0).widget()
         dates = compact.findChildren(QLabel, "ContestCardMeta")
-        assert [label.text().split(":")[0] for label in dates] == [
-            "Início das inscrições", "Fim das inscrições", "Data da prova",
+        assert [label.text() for label in dates] == [
+            f"<b>Início das inscrições:</b> {exam_date - timedelta(days=20):%d/%m/%Y}",
+            f"<b>Fim das inscrições:</b> {exam_date - timedelta(days=7):%d/%m/%Y}",
+            f"<b>Data da prova:</b> {exam_date:%d/%m/%Y}",
         ]
         roles = compact.findChildren(QLabel, "ContestCardInterest")
         assert [label.text() for label in roles] == ["Médico · R$ 12.000,00 a R$ 14.000,00"]
@@ -171,10 +167,20 @@ def main() -> None:
         with patch.object(window, "_open_contest_details") as open_details:
             window.contest_table.itemActivated.emit(window.contest_table.item(0, 0))
             open_details.assert_called_once_with(contest_id)
-        with patch.object(window, "_open_prompts"):
-            window.nav_buttons["prompts"].click()
-            assert window.nav_buttons["contests"].isChecked()
-            assert not window.nav_buttons["prompts"].isChecked()
+        window.nav_buttons["prompts"].click()
+        assert window.stack.currentWidget() is window.prompts_page
+        assert window.nav_buttons["prompts"].isChecked()
+        assert "Médico" in window.prompts_page.editor.toPlainText()
+        database.save_user_profile({"cargos_desejados": ["Auditor"]})
+        window.show_page("profile")
+        window.nav_buttons["prompts"].click()
+        assert "Auditor" in window.prompts_page.editor.toPlainText()
+        copy_button = next(
+            button for button in window.prompts_page.findChildren(QPushButton) if button.text() == "Copiar prompt"
+        )
+        copy_button.click()
+        assert app.clipboard().text() == window.prompts_page.editor.toPlainText()
+        assert window.prompts_page.copy_status.text() == "Prompt copiado."
 
         other_id = database.save_contest({"nome": "Concurso sem conteúdo " + "Longo " * 30})
         window._refresh_all()

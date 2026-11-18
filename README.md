@@ -1,6 +1,6 @@
 # Agenda de Concursos
 
-Aplicativo desktop portátil para Windows, desenvolvido em Python, para organizar concursos públicos, acompanhar datas, estruturar conteúdos programáticos e comparar editais.
+Aplicativo desktop para Windows, desenvolvido em Python, para organizar concursos públicos, acompanhar datas, estruturar conteúdos programáticos e comparar editais.
 
 ## Funcionalidades
 
@@ -17,7 +17,7 @@ Aplicativo desktop portátil para Windows, desenvolvido em Python, para organiza
 - Mostrar/ocultar widget pela barra de ferramentas da janela principal ou pelo menu do ícone na área de notificação do Windows.
 - Ícone próprio do aplicativo, incluindo a bandeja do sistema.
 - Tema claro (padrão) e tema escuro, com paletas e textos de alto contraste.
-- Inicialização com o Windows ativada por padrão na primeira execução. O widget abre na área de trabalho, e a janela principal fica acessível pelo ícone da bandeja.
+- O widget abre na área de trabalho, e a janela principal fica acessível pelo ícone da bandeja. A edição MSIX pode iniciar com o Windows quando o usuário a habilita nas configurações do sistema.
 - Banco SQLite local e exportação/importação de backup JSON, incluindo perfil e cargos.
 - Funciona offline para as funcionalidades locais.
 
@@ -45,23 +45,15 @@ Aplicativo desktop portátil para Windows, desenvolvido em Python, para organiza
    py main.py
    ~~~
 
-## Distribuição portátil
+## Distribuição pela Microsoft Store
 
-A compilação recomendada é no modo **onedir**, e não onefile: o executável e suas bibliotecas ficam em uma pasta, enquanto o banco permanece em data/, ao lado do aplicativo. Para gerar:
+O GitHub Actions gera um MSIX x64 com identidade de validação. Para gerar o pacote de publicação com a identidade reservada, siga o [guia de publicação](docs/PUBLICACAO_MICROSOFT_STORE.md).
 
-~~~powershell
-py -m pip install -r requirements.txt
-py -m pip install pyinstaller
-pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir --add-data "assets;assets" main.py
-~~~
-
-Copie a pasta dist/Agenda de Concursos para o local desejado. Extraia-a em uma pasta na qual o usuário tenha permissão de escrita (evite diretórios protegidos do Windows). Na primeira execução, o aplicativo cria data/agenda.db. Mantenha a pasta data junto do programa ao movê-lo para outro computador. Com a bandeja do sistema disponível, fechar a janela principal a minimiza para a área de notificação; use o menu do ícone para mostrar/ocultar o widget ou sair do aplicativo.
+Para migrar da edição portátil, exporte um backup JSON no aplicativo antigo e importe-o em **Configurações** na edição instalada. Desative a inicialização automática na edição antiga antes de substituí-la.
 
 ## Dados e privacidade
 
-Os dados são armazenados localmente em SQLite. O aplicativo não envia fichas, perfis ou conteúdos para servidores. Faça backups periódicos pelo menu **Configurações**. O backup JSON contém fichas, cargos, disciplinas, tópicos e preferências do aplicativo.
-
-A configuração de inicialização grava ou remove o script .vbs na pasta Inicializar do usuário atual. Desmarque **Iniciar automaticamente quando eu entrar no Windows** em **Configurações** para desativá-la.
+Os dados ficam no armazenamento local do usuário do Windows, fora da pasta do executável. O backup JSON exportado em **Configurações** inclui fichas, cargos, disciplinas, tópicos e preferências. [Política de privacidade](docs/PRIVACIDADE.md)
 
 ## Como interpretar a comparação
 
@@ -81,7 +73,7 @@ O relatório mostra a cobertura por disciplina e os tópicos correspondentes. Re
 - agenda/services/contest_payload.py: validação do formato JSON de cadastro.
 - agenda/services/prompts.py: prompt de extração personalizado.
 - agenda/services/similarity.py: comparação dos conteúdos.
-- agenda/startup.py: integração opcional com a pasta Inicializar do Windows.
+- packaging/: manifesto e geração do MSIX.
 - agenda/ui/: janela principal, perfil, cards clicáveis, ficha detalhada, gestão de cargos, temas, importação por JSON e widget.
 - assets/app_icon.svg: ícone vetorial próprio do aplicativo.
 - docs/IMPORTACAO_JSON_E_PROMPTS.md: guia de perfil, seção Prompts e importação.

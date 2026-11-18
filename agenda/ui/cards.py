@@ -54,7 +54,10 @@ class ContestCard(QFrame):
             ):
                 value = format_date_input(contest.get(key))
                 line = f"{caption}: {value or 'Não informada'}"
-                layout.addWidget(self._label(line, "ContestCardMeta"))
+                field = self._label(line, "ContestCardMeta")
+                field.setTextFormat(Qt.TextFormat.RichText)
+                field.setText(f"<b>{caption}:</b> {escape(value or 'Não informada')}")
+                layout.addWidget(field)
                 lines.append(line)
             roles = [
                 f"{cargo['nome']} · {format_cargo_salary(cargo)}"

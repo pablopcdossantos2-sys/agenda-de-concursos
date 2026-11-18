@@ -20,8 +20,7 @@ class DesktopWidget(QWidget):
         super().__init__(
             parent,
             Qt.WindowType.Tool
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint,
+            | Qt.WindowType.FramelessWindowHint,
         )
         self.database = database
         self._drag_offset: QPoint | None = None
@@ -46,17 +45,12 @@ class DesktopWidget(QWidget):
         header = QFrame()
         header.setObjectName("WidgetHeader")
         header_layout = QVBoxLayout(header)
-        header_layout.setContentsMargins(2, 0, 2, 4)
-        header_layout.setSpacing(2)
+        header_layout.setContentsMargins(0, 0, 0, 4)
 
         title = QLabel("PRÓXIMOS CONCURSOS")
         title.setObjectName("WidgetTitle")
         title.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        subtitle = QLabel("Datas de prova e oportunidades em aberto")
-        subtitle.setObjectName("WidgetSubtitle")
-        subtitle.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         header_layout.addWidget(title)
-        header_layout.addWidget(subtitle)
         root.addWidget(header)
 
         self.cards_host = QWidget()
@@ -112,7 +106,10 @@ class DesktopWidget(QWidget):
             }}
             QFrame#WidgetHeader, QFrame#WidgetFooter {{ background:transparent; border:none; }}
             QWidget#WidgetCardsHost {{ background:transparent; border:none; }}
-            QLabel#WidgetTitle {{ background:transparent; color:{c['text']}; font-size:12pt; font-weight:800; }}
+            QLabel#WidgetTitle {{
+                background:{c['chip_bg']}; color:{c['chip_text']};
+                border-radius:8px; padding:8px 10px; font-size:14pt; font-weight:800;
+            }}
             QLabel#WidgetSubtitle {{ background:transparent; color:{c['muted']}; font-size:8pt; }}
             QFrame#ContestCard {{ background:{c['panel']}; border:1px solid {c['border']}; border-radius:10px; }}
             QFrame#ContestCard:hover, QFrame#ContestCard:focus {{
