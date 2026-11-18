@@ -59,11 +59,11 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 ## 6. Widget e bandeja do Windows
 
 1. Abra o widget usando **Mostrar widget** na barra de ferramentas.
-2. Confirme que os cards têm cantos arredondados, borda visível e hierarquia clara: nome do concurso, situação, órgão/cargo e datas.
-3. Confirme que o widget não apresenta botão interno **Ocultar** e não exibe barras de rolagem.
-4. Confira nomes longos, vários cargos, datas de inscrição e data de prova; textos truncados devem continuar disponíveis na dica de ferramenta.
+2. Confirme que início das inscrições, fim das inscrições e data da prova aparecem em linhas separadas.
+3. Na ficha, abra **Gerenciar cargos e salários**, selecione um cargo, clique em **Marcar como de interesse** e em **Concluir**. Confira o destaque na ficha e a linha com nome e remuneração no widget.
+4. Marque vários cargos e confira que é possível ler os nomes e as remunerações. Passe o ponteiro sobre o título do card para ler o texto completo.
 5. Em **Configurações**, altere quantidade de cards, largura (320–700 px) e altura (300–900 px), salve e confirme as dimensões.
-6. Aumente e reduza a altura; confirme que a quantidade de cards exibidos se adapta sem criar barras de rolagem.
+6. Reduza a altura e confira se a rolagem vertical permite ler os cards que excedem o espaço disponível.
 7. Use **Ocultar widget** na barra de ferramentas da janela principal e depois **Mostrar widget**.
 8. Clique com o botão direito no ícone do Agenda de Concursos na área de notificação do Windows e teste **Mostrar/Ocultar widget**.
 9. Feche a janela principal pelo X. Confirme que ela é minimizada para a bandeja e que o menu do ícone permite reabri-la e sair do aplicativo.
@@ -87,33 +87,23 @@ Esta lista deve ser executada em um computador com Windows 10 ou 11 antes de dis
 
 ## 9. Inicialização automática
 
-1. Marque a opção de iniciar com o Windows e salve.
-2. Abra a pasta Inicializar do usuário: pressione Win+R, digite **shell:startup** e confirme.
-3. Verifique se existe o arquivo **Agenda de Concursos.vbs**.
-4. Reinicie a sessão ou o computador e confira se o aplicativo abre.
-5. Desmarque a opção e salve; confirme que o script foi removido.
+1. Em uma instalação nova, abra o aplicativo e confirme que o widget aparece e a janela principal pode ser aberta pela bandeja.
+2. Em **Configurações** da Agenda, abra as configurações de inicialização do Windows e habilite o aplicativo.
+3. Reinicie a sessão e confira se o widget e o ícone da bandeja aparecem com a janela principal fechada.
+4. Desabilite o aplicativo na lista de inicialização do Windows e confira o comportamento no próximo logon.
 
-## 10. Backup e portabilidade
+## 10. Backup e migração
 
 1. Cadastre perfil, cargos, salários, disciplinas e tópicos.
 2. Exporte o backup JSON.
 3. Altere ou remova dados de teste e importe o backup anterior.
 4. Confirme que perfil, cargos, salários, disciplinas e tópicos voltaram ao momento da exportação.
 5. Confira que o backup novo não contém o antigo campo Data prevista.
-6. Faça uma cópia da pasta distribuída para outro diretório gravável.
-7. Execute a cópia e confirme que o banco usado é o que está na pasta data da cópia.
-8. Nunca apague o banco original antes de confirmar que o backup pode ser importado.
+6. Importe um backup da edição portátil na edição instalada e confira se os dados foram restaurados.
 
-## 11. Gerar a distribuição
+## 11. Validar a distribuição
 
-Na pasta do projeto, execute:
-
-~~~powershell
-py -m pip install pyinstaller
-pyinstaller --noconfirm --clean --windowed --name "Agenda de Concursos" --onedir --add-data "assets;assets" main.py
-~~~
-
-Copie a pasta dist\Agenda de Concursos para outro local. Execute o aplicativo nessa pasta e repita os testes de cadastro, perfil, widget, bandeja e backup.
+Gere e instale o MSIX conforme o [guia de publicação](PUBLICACAO_MICROSOFT_STORE.md) e repita os testes pelo menu Iniciar do Windows. Abra outro aplicativo sobre o widget e verifique que a nova janela pode cobri-lo.
 
 ## Resultado da validação
 

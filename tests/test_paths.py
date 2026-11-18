@@ -8,16 +8,18 @@ from agenda.paths import app_data_dir, app_root
 
 
 class PortablePathTests(unittest.TestCase):
-    def test_frozen_app_keeps_database_folder_next_to_executable(self):
+    def test_installed_app_keeps_database_in_local_app_data(self):
         with tempfile.TemporaryDirectory() as directory:
             executable = Path(directory) / "Portable" / "Agenda de Concursos.exe"
             executable.parent.mkdir()
             with patch("agenda.paths.sys.frozen", True, create=True), patch(
                 "agenda.paths.sys.executable", str(executable)
+            ), patch("agenda.paths.sys.platform", "win32"), patch.dict(
+                os.environ, {"LOCALAPPDATA": str(Path(directory) / "LocalAppData")}
             ):
                 self.assertTrue(os.path.samefile(app_root(), executable.parent))
                 data_dir = app_data_dir()
-                self.assertTrue(os.path.samefile(data_dir, executable.parent / "data"))
+                self.assertEqual(data_dir, Path(directory) / "LocalAppData" / "AgendaDeConcursos")
                 self.assertTrue(data_dir.is_dir())
 
     def test_source_root_is_repository_directory(self):

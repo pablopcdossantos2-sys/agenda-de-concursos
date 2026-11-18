@@ -45,11 +45,11 @@ O objeto deve conter schema_version igual a 1 e um objeto concurso. O nome do co
 {
   "schema_version": 1,
   "concurso": {
-    "nome": "Concurso de exemplo",
-    "orgao": "Órgão público",
+    "nome": "TRT da 4ª Região - FCC - 2027",
+    "orgao": "Tribunal Regional do Trabalho da 4ª Região",
     "cargo": "",
-    "banca": "Banca organizadora",
-    "localidade": "Palmas - TO",
+    "banca": "Fundação Carlos Chagas",
+    "localidade": "Rio Grande do Sul",
     "status": "Edital publicado",
     "inscricoes_inicio": "2026-11-12",
     "inscricoes_fim": "2026-12-10",

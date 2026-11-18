@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import (
     QDialog, QDialogButtonBox, QHBoxLayout, QLabel, QMessageBox,
@@ -122,28 +123,29 @@ class ContestCodeDialog(QDialog):
         return self._payload
 
 
-class PromptDialog(QDialog):
-    def __init__(self, parent: QWidget | None = None, profile: dict[str, Any] | None = None):
+class PromptPage(QWidget):
+    def __init__(self, parent: QWidget | None = None):
         super().__init__(parent)
-        self.prompt = build_extraction_prompt(profile or {})
-        self.setWindowTitle("Prompts — extração de informações de editais")
-        self.setMinimumSize(760, 620)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         intro = QLabel(
-            "Anexe o edital em PDF ou imagens à ferramenta de IA, cole o prompt abaixo "
-            "e solicite a extração. O prompt já considera o perfil salvo na seção Perfil.\n\n"
-            + profile_summary(profile or {})
+            "Anexe o edital à ferramenta de IA e cole o prompt para gerar a ficha em JSON."
         )
         intro.setObjectName("MutedText")
         intro.setWordWrap(True)
         layout.addWidget(intro)
+        self.profile_label = QLabel()
+        self.profile_label.setObjectName("MutedText")
+        self.profile_label.setTextFormat(Qt.TextFormat.PlainText)
+        self.profile_label.setWordWrap(True)
+        layout.addWidget(self.profile_label)
 
         self.editor = QPlainTextEdit()
         self.editor.setObjectName("CodeEditor")
         self.editor.setReadOnly(True)
         self.editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.editor.setPlainText(self.prompt)
+        self.editor.setAccessibleName("Prompt de extração de edital")
         layout.addWidget(self.editor, 1)
 
         footer = QHBoxLayout()
@@ -151,12 +153,16 @@ class PromptDialog(QDialog):
         copy_button.setObjectName("PrimaryButton")
         copy_button.clicked.connect(self._copy_prompt)
         footer.addWidget(copy_button)
-        footer.addStretch()
-        close_button = QPushButton("Fechar")
-        close_button.clicked.connect(self.accept)
-        footer.addWidget(close_button)
+        self.copy_status = QLabel()
+        self.copy_status.setObjectName("MutedText")
+        footer.addWidget(self.copy_status, 1)
         layout.addLayout(footer)
 
+    def set_profile(self, profile: dict[str, Any]) -> None:
+        self.profile_label.setText(profile_summary(profile))
+        self.editor.setPlainText(build_extraction_prompt(profile))
+        self.copy_status.clear()
+
     def _copy_prompt(self) -> None:
-        QGuiApplication.clipboard().setText(self.prompt)
-        QMessageBox.information(self, "Prompt copiado", "O prompt foi copiado para a área de transferência.")
+        QGuiApplication.clipboard().setText(self.editor.toPlainText())
+        self.copy_status.setText("Prompt copiado.")

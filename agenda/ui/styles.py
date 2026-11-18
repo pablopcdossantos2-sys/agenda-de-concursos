@@ -87,7 +87,7 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QLabel#PanelTitle {{ color: {c['text']}; font-size: 12pt; font-weight: 700; }}
     QLabel#MetricValue {{ color: {c['text']}; font-size: 23pt; font-weight: 700; }}
     QLabel#MetricCaption {{ color: {c['muted']}; font-size: 9pt; }}
-    QLabel#CompareScore {{ color: #4D8DF0; font-size: 17pt; font-weight: 700; }}
+    QLabel#CompareScore {{ color: {c['chip_text']}; font-size: 17pt; font-weight: 700; }}
     QFrame#Panel, QFrame#MetricCard, QFrame#DetailsSection {{
         background: {c['panel']}; border: 1px solid {c['border']}; border-radius: 13px;
     }}
@@ -95,7 +95,7 @@ def theme_stylesheet(theme: str = "claro") -> str:
         background: {c['panel']}; color: {c['text']};
         border: 1px solid {c['border']}; border-radius: 11px;
     }}
-    QFrame#ContestCard:hover {{
+    QFrame#ContestCard:hover, QFrame#ContestCard:focus {{
         background: {c['card_hover']}; border: 1px solid #4D8DF0;
     }}
     QLabel#ContestCardTitle {{ background: transparent; color: {c['text']}; font-weight: 700; font-size: 10pt; }}
@@ -113,6 +113,10 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QLabel#SectionTitle {{ color: {c['text']}; font-size: 11pt; font-weight: 700; }}
     QLabel#DetailCaption {{ color: {c['muted']}; font-size: 9pt; font-weight: 600; }}
     QLabel#DetailValue {{ color: {c['text']}; font-size: 9pt; }}
+    QLabel#CargoInterest {{
+        background: {c['chip_bg']}; color: {c['chip_text']}; border-radius: 6px;
+        padding: 3px 8px; font-weight: 700;
+    }}
     QLabel#DisciplineTitle {{ color: {c['text']}; font-size: 10pt; font-weight: 700; padding-top: 4px; }}
     QPushButton {{
         background: {c['secondary']}; color: {c['text']}; border: 1px solid {c['border']};
@@ -127,6 +131,22 @@ def theme_stylesheet(theme: str = "claro") -> str:
     QPushButton#PrimaryButton:hover {{ background: #1F55AE; }}
     QPushButton#DangerButton {{
         color: {c['danger_text']}; background: {c['danger_bg']}; border: 1px solid {c['danger_border']};
+    }}
+    QPushButton#PrimaryButton:disabled, QPushButton#DangerButton:disabled {{
+        color: {c['muted']}; background: {c['background']}; border-color: {c['border']};
+    }}
+    QPushButton:focus, QPushButton#NavButton:focus, QPushButton#PrimaryButton:focus,
+    QPushButton#DangerButton:focus {{
+        border: 1px solid #4D8DF0;
+    }}
+    QPushButton#EducationOption {{
+        border: 2px solid {c['muted']}; padding: 10px 14px;
+    }}
+    QPushButton#EducationOption:checked {{
+        background: {c['selection']}; color: {c['selection_text']}; border-color: #2864C5;
+    }}
+    QPushButton#EducationOption:focus {{
+        border-color: #4D8DF0;
     }}
     QLineEdit, QComboBox, QSpinBox, QDateEdit, QTextEdit, QPlainTextEdit {{
         background: {c['input']}; color: {c['text']}; border: 1px solid {c['border']};

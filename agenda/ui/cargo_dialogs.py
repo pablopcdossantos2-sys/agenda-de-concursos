@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from html import escape
 from typing import Any
 
 from PySide6.QtWidgets import (
@@ -7,6 +8,8 @@ from PySide6.QtWidgets import (
     QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
     QTextEdit, QVBoxLayout, QWidget,
 )
+
+from agenda.services.cargos import format_cargo_salary
 
 
 CARGO_FIELDS = (
@@ -87,8 +90,8 @@ class CargoManagerDialog(QDialog):
 
         layout = QVBoxLayout(self)
         intro = QLabel(
-            "Cadastre cada cargo ou especialidade separadamente. Requisitos, remuneração, "
-            "benefícios e jornada devem permanecer associados à vaga correta."
+            "Selecione um cargo e marque-o como de interesse para destacar sua remuneração "
+            "na ficha e mostrá-lo no widget."
         )
         intro.setObjectName("MutedText")
         intro.setWordWrap(True)
@@ -107,6 +110,11 @@ class CargoManagerDialog(QDialog):
         remove = QPushButton("Remover")
         remove.setObjectName("DangerButton")
         remove.clicked.connect(self._remove)
+        self.interest_button = QPushButton("Marcar como de interesse")
+        self.interest_button.clicked.connect(self._toggle_interest)
+        self.list_widget.currentRowChanged.connect(self._sync_interest_button)
+        self.list_widget.itemDoubleClicked.connect(lambda _item: self._edit())
+        actions.addWidget(self.interest_button)
         actions.addWidget(add)
         actions.addWidget(edit)
         actions.addWidget(remove)
@@ -127,15 +135,28 @@ class CargoManagerDialog(QDialog):
         for cargo in self._cargos:
             title = cargo.get("nome") or "Cargo sem nome"
             level = cargo.get("nivel_escolaridade") or "Nível não informado"
-            salary = cargo.get("salario_inicial") or "Remuneração não informada"
-            item = QListWidgetItem(f"{title}\n{level} · {salary}")
-            item.setToolTip(
-                f"{title}\nRequisitos: {cargo.get('requisitos') or 'Não informados'}\n"
-                f"Salário inicial: {salary}\nSalário final: {cargo.get('salario_final') or 'Não informado'}"
-            )
+            salary = format_cargo_salary(cargo)
+            interest = " ★ De interesse" if cargo.get("interesse") else ""
+            item = QListWidgetItem(f"{title}{interest}\n{level} · {salary}")
+            tooltip = escape(f"{title}\nRemuneração: {salary}").replace("\n", "<br>")
+            item.setToolTip(f"<qt>{tooltip}</qt>")
             self.list_widget.addItem(item)
         if self.list_widget.count():
             self.list_widget.setCurrentRow(min(max(0, selected), self.list_widget.count() - 1))
+        self._sync_interest_button()
+
+    def _sync_interest_button(self, *_args) -> None:
+        index = self._selected_index()
+        self.interest_button.setEnabled(index is not None)
+        marked = index is not None and self._cargos[index].get("interesse")
+        self.interest_button.setText("Remover interesse" if marked else "Marcar como de interesse")
+
+    def _toggle_interest(self) -> None:
+        index = self._selected_index()
+        if index is not None:
+            cargo = self._cargos[index]
+            cargo["interesse"] = not cargo.get("interesse")
+            self._refresh(index)
 
     def _selected_index(self) -> int | None:
         row = self.list_widget.currentRow()
@@ -154,7 +175,7 @@ class CargoManagerDialog(QDialog):
             return
         dialog = CargoDialog(self, self._cargos[index])
         if dialog.exec():
-            self._cargos[index] = dialog.values()
+            self._cargos[index].update(dialog.values())
             self._refresh(index)
 
     def _remove(self) -> None:
@@ -165,5 +186,5 @@ class CargoManagerDialog(QDialog):
         self._cargos.pop(index)
         self._refresh(max(0, index - 1))
 
-    def cargos(self) -> list[dict[str, str]]:
+    def cargos(self) -> list[dict[str, Any]]:
         return [dict(item) for item in self._cargos]

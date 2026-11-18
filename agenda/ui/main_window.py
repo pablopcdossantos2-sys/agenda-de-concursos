@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import sys
 from datetime import date
+from html import escape
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, QSize
-from PySide6.QtGui import QAction, QColor, QIcon
+from PySide6.QtCore import Qt, QSignalBlocker, QSize, QUrl
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon
 from PySide6.QtWidgets import (
     QApplication, QAbstractItemView, QCheckBox, QComboBox, QFileDialog, QFrame,
     QGridLayout, QHBoxLayout, QHeaderView, QLabel, QLineEdit, QListWidget,
@@ -19,10 +21,9 @@ from agenda.database import Database
 from agenda.services.dates import format_date_pt_br
 from agenda.services.profile import EDUCATION_LEVELS, profile_summary
 from agenda.services.similarity import compare_programs
-from agenda.startup import disable_startup, enable_startup, startup_enabled
 from agenda.ui.assets import asset_path
 from agenda.ui.cards import ContestCard
-from agenda.ui.code_dialogs import ContestCodeDialog, PromptDialog
+from agenda.ui.code_dialogs import ContestCodeDialog, PromptPage
 from agenda.ui.details_dialog import ContestDetailsDialog
 from agenda.ui.dialogs import ContestDialog, NameDialog, TopicDialog
 from agenda.ui.styles import theme_stylesheet
@@ -47,8 +48,12 @@ class MainWindow(QMainWindow):
         self._build_ui()
         self._setup_tray()
         self._refresh_all()
-        if self.database.get_setting("widget_auto_show", "0") == "1":
-            self.show_desktop_widget()
+
+    def launch(self) -> None:
+        if self.database.get_setting("widget_auto_show", "1") == "1":
+            self.show_desktop_widget(activate=False)
+        if self.tray_icon is None:
+            self.show()
 
     def apply_theme(self, theme: str) -> None:
         self.theme = theme if theme in ("claro", "escuro") else "claro"
@@ -71,7 +76,7 @@ class MainWindow(QMainWindow):
         toolbar.addSeparator()
 
         prompts = QAction("Prompts", self)
-        prompts.triggered.connect(self._open_prompts)
+        prompts.triggered.connect(lambda: self.show_page("prompts"))
         toolbar.addAction(prompts)
 
         code = QAction("Inserir por JSON", self)
@@ -101,10 +106,6 @@ class MainWindow(QMainWindow):
         brand = QLabel("◈  Agenda")
         brand.setObjectName("Brand")
         side.addWidget(brand)
-        brand_sub = QLabel("ORGANIZE SEUS PRÓXIMOS PASSOS")
-        brand_sub.setObjectName("BrandSub")
-        side.addWidget(brand_sub)
-        side.addSpacing(22)
 
         self.nav_buttons: dict[str, QPushButton] = {}
         nav_items = [
@@ -142,6 +143,7 @@ class MainWindow(QMainWindow):
         self.page_title.setObjectName("PageTitle")
         self.page_subtitle = QLabel("Acompanhe seus objetivos e organize sua preparação.")
         self.page_subtitle.setObjectName("PageSubtitle")
+        self.page_subtitle.setWordWrap(True)
         titles.addWidget(self.page_title)
         titles.addWidget(self.page_subtitle)
         header.addLayout(titles)
@@ -157,6 +159,8 @@ class MainWindow(QMainWindow):
         self.pages["contests"] = self._build_contests_page()
         self.pages["content"] = self._build_content_page()
         self.pages["compare"] = self._build_compare_page()
+        self.prompts_page = PromptPage()
+        self.pages["prompts"] = self.prompts_page
         self.pages["profile"] = self._build_profile_page()
         self.pages["settings"] = self._build_settings_page()
         for page in self.pages.values():
@@ -208,9 +212,6 @@ class MainWindow(QMainWindow):
         layout.addLayout(metrics)
 
         panel, panel_layout = self._panel("Agenda de datas")
-        subtitle = QLabel("Cada card resume um concurso. Clique em qualquer um para consultar a ficha completa.")
-        subtitle.setObjectName("MutedText")
-        panel_layout.addWidget(subtitle)
         self.dashboard_scroll = QScrollArea()
         self.dashboard_scroll.setWidgetResizable(True)
         self.dashboard_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -227,10 +228,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(panel, 1)
 
         actions = QHBoxLayout()
-        hint = QLabel("Dica: cadastre primeiro seus concursos de interesse. Você pode completar as datas depois.")
-        hint.setWordWrap(True)
-        hint.setObjectName("MutedText")
-        actions.addWidget(hint, 1)
+        actions.addStretch()
         add = QPushButton("+ Cadastrar concurso")
         add.setObjectName("PrimaryButton")
         add.clicked.connect(self._add_contest)
@@ -244,6 +242,8 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         toolbar = QHBoxLayout()
         self.contest_search = QLineEdit()
+        self.contest_search.setAccessibleName("Buscar concursos")
+        self.contest_search.setClearButtonEnabled(True)
         self.contest_search.setPlaceholderText("Buscar por concurso, órgão, cargo ou banca...")
         self.contest_search.textChanged.connect(self._refresh_contest_table)
         toolbar.addWidget(self.contest_search, 1)
@@ -260,29 +260,40 @@ class MainWindow(QMainWindow):
         panel, panel_layout = self._panel()
         self.contest_table = QTableWidget(0, 6)
         self.contest_table.setHorizontalHeaderLabels(
-            ["Concurso / seleção", "Órgão", "Cargo", "Situação", "Data principal", "Banca"]
+            ["Concurso / seleção", "Órgão", "Cargo", "Situação", "Data da prova", "Banca"]
         )
         self.contest_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.contest_table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.contest_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.contest_table.setAlternatingRowColors(True)
         self.contest_table.verticalHeader().setVisible(False)
-        self.contest_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for index in (1, 2, 3, 4, 5):
-            self.contest_table.horizontalHeader().setSectionResizeMode(index, QHeaderView.ResizeMode.ResizeToContents)
-        self.contest_table.doubleClicked.connect(self._edit_contest)
+        self.contest_table.setWordWrap(False)
+        header = self.contest_table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        for index in (3, 4):
+            header.setSectionResizeMode(index, QHeaderView.ResizeMode.Interactive)
+        self.contest_table.setColumnWidth(3, 132)
+        self.contest_table.setColumnWidth(4, 144)
+        self.contest_table.itemActivated.connect(self._show_selected_contest)
         panel_layout.addWidget(self.contest_table)
         layout.addWidget(panel, 1)
 
         buttons = QHBoxLayout()
         buttons.addStretch()
+        view = QPushButton("Ver ficha")
+        view.setObjectName("PrimaryButton")
+        view.clicked.connect(self._show_selected_contest)
         edit = QPushButton("Editar ficha")
         edit.clicked.connect(self._edit_contest)
         delete = QPushButton("Excluir")
         delete.setObjectName("DangerButton")
         delete.clicked.connect(self._delete_contest)
-        buttons.addWidget(edit)
-        buttons.addWidget(delete)
+        for button in (view, edit, delete):
+            button.setEnabled(False)
+            self.contest_table.itemSelectionChanged.connect(
+                lambda control=button: control.setEnabled(self._selected_contest_id() is not None)
+            )
+            buttons.addWidget(button)
         layout.addLayout(buttons)
         return page
 
@@ -293,6 +304,7 @@ class MainWindow(QMainWindow):
         selector = QHBoxLayout()
         selector.addWidget(QLabel("Concurso:"))
         self.content_contest_combo = QComboBox()
+        self.content_contest_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.content_contest_combo.currentIndexChanged.connect(self._load_content)
         selector.addWidget(self.content_contest_combo, 1)
         layout.addLayout(selector)
@@ -350,6 +362,9 @@ class MainWindow(QMainWindow):
         selectors = QHBoxLayout()
         self.compare_a = QComboBox()
         self.compare_b = QComboBox()
+        for combo in (self.compare_a, self.compare_b):
+            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+            combo.setPlaceholderText("Selecione um concurso")
         selectors.addWidget(QLabel("Concurso A"))
         selectors.addWidget(self.compare_a, 1)
         selectors.addWidget(QLabel("Concurso B"))
@@ -364,6 +379,7 @@ class MainWindow(QMainWindow):
         summary_panel, summary_layout = self._panel("Resultado da comparação")
         self.compare_score = QLabel("Selecione dois concursos e inicie a comparação.")
         self.compare_score.setObjectName("CompareScore")
+        self.compare_score.setWordWrap(True)
         summary_layout.addWidget(self.compare_score)
         self.compare_detail = QLabel(
             "Estimativa textual baseada nos tópicos cadastrados. Revise os pares sugeridos antes de tomar decisões de estudo."
@@ -373,9 +389,16 @@ class MainWindow(QMainWindow):
         summary_layout.addWidget(self.compare_detail)
         self.compare_tree = QTreeWidget()
         self.compare_tree.setHeaderLabels(["Disciplina / tópico", "Correspondência", "Observação"])
-        self.compare_tree.setColumnWidth(0, 440)
+        header = self.compare_tree.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for index in (1, 2):
+            header.setSectionResizeMode(index, QHeaderView.ResizeMode.ResizeToContents)
         summary_layout.addWidget(self.compare_tree, 1)
         layout.addWidget(summary_panel, 1)
+        self._clear_comparison()
+        self.compare_a.currentIndexChanged.connect(self._clear_comparison)
+        self.compare_b.currentIndexChanged.connect(self._clear_comparison)
         return page
 
     def _build_profile_page(self) -> QWidget:
@@ -383,7 +406,6 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        profile = self.database.get_user_profile()
         general, general_layout = self._panel("Níveis de escolaridade desejados")
         intro = QLabel(
             "Marque os níveis que você aceita. Se nenhum nível for selecionado, o prompt "
@@ -393,14 +415,19 @@ class MainWindow(QMainWindow):
         intro.setWordWrap(True)
         general_layout.addWidget(intro)
 
-        self.profile_level_checks: dict[str, QCheckBox] = {}
+        self.profile_level_checks: dict[str, QPushButton] = {}
         levels_row = QHBoxLayout()
         for level in EDUCATION_LEVELS:
-            check = QCheckBox(level)
-            check.setChecked(level in profile["niveis_escolaridade"])
+            check = QPushButton(level)
+            check.setObjectName("EducationOption")
+            check.setCheckable(True)
+            check.setAccessibleName(level)
+            check.setCursor(Qt.CursorShape.PointingHandCursor)
+            check.toggled.connect(
+                lambda selected, button=check, name=level: button.setText(f"✓  {name}" if selected else name)
+            )
             self.profile_level_checks[level] = check
-            levels_row.addWidget(check)
-        levels_row.addStretch()
+            levels_row.addWidget(check, 1)
         general_layout.addLayout(levels_row)
         layout.addWidget(general)
 
@@ -415,7 +442,6 @@ class MainWindow(QMainWindow):
         roles_layout.addWidget(roles_help)
         self.profile_roles_edit = QPlainTextEdit()
         self.profile_roles_edit.setPlaceholderText("Médico\nJornalista\nAnalista de sistemas")
-        self.profile_roles_edit.setPlainText("\n".join(profile["cargos_desejados"]))
         self.profile_roles_edit.setMaximumHeight(150)
         roles_layout.addWidget(self.profile_roles_edit)
 
@@ -427,19 +453,28 @@ class MainWindow(QMainWindow):
             "Ex.: aceitar somente cargos com registro profissional ativo; não considerar contratos temporários."
         )
         self.profile_notes_edit.setMaximumHeight(90)
-        self.profile_notes_edit.setPlainText(profile["observacoes"])
         roles_layout.addWidget(self.profile_notes_edit)
         save_profile = QPushButton("Salvar perfil")
         save_profile.setObjectName("PrimaryButton")
         save_profile.clicked.connect(self._save_profile)
         roles_layout.addWidget(save_profile)
-        self.profile_saved_label = QLabel(profile_summary(profile))
+        self.profile_saved_label = QLabel()
         self.profile_saved_label.setObjectName("MutedText")
+        self.profile_saved_label.setTextFormat(Qt.TextFormat.PlainText)
         self.profile_saved_label.setWordWrap(True)
         roles_layout.addWidget(self.profile_saved_label)
         layout.addWidget(roles_panel)
         layout.addStretch()
+        self._load_profile()
         return page
+
+    def _load_profile(self) -> None:
+        profile = self.database.get_user_profile()
+        for level, check in self.profile_level_checks.items():
+            check.setChecked(level in profile["niveis_escolaridade"])
+        self.profile_roles_edit.setPlainText("\n".join(profile["cargos_desejados"]))
+        self.profile_notes_edit.setPlainText(profile["observacoes"])
+        self.profile_saved_label.setText(profile_summary(profile))
 
     def _save_profile(self) -> None:
         profile = {
@@ -472,38 +507,34 @@ class MainWindow(QMainWindow):
         theme_row.addStretch()
         general_layout.addLayout(theme_row)
 
-        self.startup_check = QCheckBox("Iniciar automaticamente quando eu entrar no Windows")
-        self.startup_check.setChecked(startup_enabled())
-        self.auto_widget_check = QCheckBox("Mostrar o widget automaticamente ao abrir o aplicativo")
-        self.auto_widget_check.setChecked(self.database.get_setting("widget_auto_show", "0") == "1")
-        general_layout.addWidget(self.startup_check)
+        self.auto_widget_check = QCheckBox("Mostrar o widget ao iniciar")
+        if sys.platform == "win32":
+            startup = QPushButton("Abrir configurações de inicialização do Windows")
+            startup.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("ms-settings:startupapps")))
+            general_layout.addWidget(startup)
         general_layout.addWidget(self.auto_widget_check)
-        row = QHBoxLayout()
-        row.addWidget(QLabel("Quantidade de concursos no widget:"))
+        row = QGridLayout()
+        row.addWidget(QLabel("Quantidade de concursos no widget"), 0, 0)
         self.widget_count = QSpinBox()
         self.widget_count.setRange(1, 20)
-        self.widget_count.setValue(max(1, min(20, int(self.database.get_setting("widget_items", "5") or 5))))
-        row.addWidget(self.widget_count)
-        row.addSpacing(16)
+        row.addWidget(self.widget_count, 0, 1)
 
-        row.addWidget(QLabel("Largura do widget (px):"))
+        row.addWidget(QLabel("Largura do widget (px)"), 1, 0)
         self.widget_width = QSpinBox()
         self.widget_width.setRange(320, 700)
         self.widget_width.setSingleStep(10)
-        self.widget_width.setValue(max(320, min(700, int(self.database.get_setting("widget_width", "390") or 390))))
-        row.addWidget(self.widget_width)
+        row.addWidget(self.widget_width, 1, 1)
 
-        row.addWidget(QLabel("Altura (px):"))
+        row.addWidget(QLabel("Altura do widget (px)"), 2, 0)
         self.widget_height = QSpinBox()
         self.widget_height.setRange(300, 900)
         self.widget_height.setSingleStep(10)
-        self.widget_height.setValue(max(300, min(900, int(self.database.get_setting("widget_height", "470") or 470))))
-        row.addWidget(self.widget_height)
-        row.addStretch()
+        row.addWidget(self.widget_height, 2, 1)
+        row.setColumnStretch(2, 1)
         general_layout.addLayout(row)
         dimensions_hint = QLabel(
-            "A quantidade de cards visíveis se ajusta à altura escolhida. "
-            "O widget não exibe barras de rolagem; aumente a altura para mostrar mais concursos."
+            "A janela principal pode ser aberta pelo ícone da bandeja. "
+            "Use a rolagem do widget quando os cards ultrapassarem a altura disponível."
         )
         dimensions_hint.setWordWrap(True)
         dimensions_hint.setObjectName("HintText")
@@ -533,20 +564,23 @@ class MainWindow(QMainWindow):
         backup_layout.addLayout(actions)
         layout.addWidget(backup)
         layout.addStretch()
+        self._sync_widget_controls()
         return page
 
+    def _sync_widget_controls(self) -> None:
+        self.auto_widget_check.setChecked(self.database.get_setting("widget_auto_show", "1") == "1")
+        self.widget_count.setValue(self.desktop_widget.item_limit)
+        self.widget_width.setValue(self.desktop_widget.widget_width)
+        self.widget_height.setValue(self.desktop_widget.widget_height)
+
     def show_page(self, key: str) -> None:
-        if key == "prompts":
-            for nav_key, button in self.nav_buttons.items():
-                button.setChecked(nav_key == key)
-            self._open_prompts()
-            return
         labels = {
             "dashboard": ("Visão geral", "Acompanhe seus objetivos e organize sua preparação."),
             "contests": ("Concursos", "Mantenha uma ficha para cada oportunidade de interesse."),
             "content": ("Conteúdo programático", "Estruture disciplinas e tópicos de cada concurso."),
             "compare": ("Comparar conteúdos", "Descubra quais assuntos se repetem entre diferentes seleções."),
             "profile": ("Perfil", "Defina os níveis de escolaridade e os cargos que você deseja encontrar."),
+            "prompts": ("Prompts", "Extração de informações de editais"),
             "settings": ("Configurações", "Ajuste a inicialização, o widget e seus backups locais."),
         }
         if key not in self.pages:
@@ -567,8 +601,8 @@ class MainWindow(QMainWindow):
             self._refresh_contest_combos(self.compare_a)
             self._refresh_contest_combos(self.compare_b)
 
-    def _open_prompts(self) -> None:
-        PromptDialog(self, self.database.get_user_profile()).exec()
+        elif key == "prompts":
+            self.prompts_page.set_profile(self.database.get_user_profile())
 
     def _add_contest_from_code(self) -> None:
         dialog = ContestCodeDialog(self)
@@ -592,12 +626,14 @@ class MainWindow(QMainWindow):
         self.theme = selected
         self.database.set_setting("theme", selected)
         self.apply_theme(selected)
+        self._refresh_contest_table()
 
-    def show_desktop_widget(self) -> None:
+    def show_desktop_widget(self, *, activate: bool = True) -> None:
         self.desktop_widget.refresh()
         self.desktop_widget.show()
         self.desktop_widget.raise_()
-        self.desktop_widget.activateWindow()
+        if activate:
+            self.desktop_widget.activateWindow()
         self._update_widget_actions()
 
     def _toggle_desktop_widget(self) -> None:
@@ -674,6 +710,8 @@ class MainWindow(QMainWindow):
         self._refresh_contest_combos(self.content_contest_combo)
         self._refresh_contest_combos(self.compare_a)
         self._refresh_contest_combos(self.compare_b)
+        self._load_content()
+        self._clear_comparison()
         self._refresh_dashboard()
         self.desktop_widget.refresh()
 
@@ -714,10 +752,16 @@ class MainWindow(QMainWindow):
         dialog.exec()
         self._refresh_all()
 
+    def _show_selected_contest(self, *_args) -> None:
+        contest_id = self._selected_contest_id()
+        if contest_id is not None:
+            self._open_contest_details(contest_id)
+
     def _refresh_contest_table(self) -> None:
         if not hasattr(self, "contest_table"):
             return
         rows = self.database.list_contests(self.contest_search.text() if hasattr(self, "contest_search") else "")
+        selected_id = self._selected_contest_id()
         self.contest_table.setRowCount(0)
         for contest in rows:
             row_index = self.contest_table.rowCount()
@@ -741,6 +785,7 @@ class MainWindow(QMainWindow):
             for column, value in enumerate(values):
                 item = QTableWidgetItem(str(value or "—"))
                 item.setData(Qt.ItemDataRole.UserRole, contest["id"])
+                item.setToolTip(f"<qt>{escape(item.text())}</qt>")
                 if column == 3:
                     if self.theme == "escuro":
                         colors = {
@@ -757,36 +802,37 @@ class MainWindow(QMainWindow):
                     item.setForeground(QColor(colors.get(str(value), "#53647A")))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.contest_table.setItem(row_index, column, item)
+            if contest["id"] == selected_id:
+                self.contest_table.selectRow(row_index)
 
     def _refresh_contest_combos(self, combo: QComboBox) -> None:
         if combo is None:
             return
         current = combo.currentData()
-        combo.blockSignals(True)
-        combo.clear()
-        for contest in self.database.list_contests():
-            combo.addItem(contest.get("nome", "Concurso"), contest["id"])
-        if current is not None:
+        with QSignalBlocker(combo):
+            combo.clear()
+            for contest in self.database.list_contests():
+                combo.addItem(contest.get("nome", "Concurso"), contest["id"])
             index = combo.findData(current)
-            if index >= 0:
+            if combo is self.compare_b and combo.count() < 2:
+                combo.setCurrentIndex(-1)
+            elif index >= 0:
                 combo.setCurrentIndex(index)
-        combo.blockSignals(False)
+            elif combo is self.compare_b:
+                first_id = combo.itemData(0)
+                combo.setCurrentIndex(int(first_id == self.compare_a.currentData()))
+            elif combo.count():
+                combo.setCurrentIndex(0)
 
     def _selected_contest_id(self) -> int | None:
-        row = self.contest_table.currentRow()
-        if row < 0:
-            return None
-        item = self.contest_table.item(row, 0)
-        return int(item.data(Qt.ItemDataRole.UserRole)) if item else None
+        selected = self.contest_table.selectionModel().selectedRows()
+        return int(selected[0].data(Qt.ItemDataRole.UserRole)) if selected else None
 
     def _add_contest(self) -> None:
         dialog = ContestDialog(self)
         if dialog.exec():
             try:
-                values = dialog.values()
-                cargos = values.pop("cargos", [])
-                contest_id = self.database.save_contest(values)
-                self.database.replace_cargos(contest_id, cargos)
+                self.database.save_contest(dialog.values())
                 self._refresh_all()
             except Exception as error:
                 QMessageBox.critical(self, "Não foi possível salvar", str(error))
@@ -803,10 +849,7 @@ class MainWindow(QMainWindow):
         dialog = ContestDialog(self, data)
         if dialog.exec():
             try:
-                values = dialog.values()
-                cargos = values.pop("cargos", [])
-                self.database.save_contest(values, contest_id)
-                self.database.replace_cargos(contest_id, cargos)
+                self.database.save_contest(dialog.values(), contest_id)
                 self._refresh_all()
             except Exception as error:
                 QMessageBox.critical(self, "Não foi possível salvar", str(error))
@@ -824,20 +867,23 @@ class MainWindow(QMainWindow):
             self.database.delete_contest(contest_id)
             self._refresh_all()
 
-    def _load_content(self, *_args) -> None:
+    def _load_content(self, *_args, preferred_discipline_id: int | None = None) -> None:
         if not hasattr(self, "discipline_list"):
             return
-        self.discipline_list.clear()
-        self.topic_list.clear()
+        selected_id = preferred_discipline_id or self._selected_discipline_id()
         contest_id = self.content_contest_combo.currentData()
-        if contest_id is None:
-            return
-        for discipline in self.database.list_disciplines(int(contest_id)):
-            item = QListWidgetItem(discipline["nome"])
-            item.setData(Qt.ItemDataRole.UserRole, discipline["id"])
-            self.discipline_list.addItem(item)
-        if self.discipline_list.count():
-            self.discipline_list.setCurrentRow(0)
+        disciplines = self.database.list_disciplines(int(contest_id)) if contest_id is not None else []
+        selected_row = 0
+        with QSignalBlocker(self.discipline_list):
+            self.discipline_list.clear()
+            for row, discipline in enumerate(disciplines):
+                item = QListWidgetItem(discipline["nome"])
+                item.setData(Qt.ItemDataRole.UserRole, discipline["id"])
+                self.discipline_list.addItem(item)
+                if discipline["id"] == selected_id:
+                    selected_row = row
+            self.discipline_list.setCurrentRow(selected_row)
+        self._load_topics()
 
     def _selected_discipline_id(self) -> int | None:
         item = self.discipline_list.currentItem()
@@ -872,8 +918,9 @@ class MainWindow(QMainWindow):
             return
         dialog = NameDialog("Nova disciplina", "Nome da disciplina:", self)
         if dialog.exec() and dialog.value():
-            self.database.add_discipline(int(contest_id), dialog.value())
-            self._load_content()
+            discipline_id = self.database.add_discipline(int(contest_id), dialog.value())
+            self._load_content(preferred_discipline_id=discipline_id)
+            self._clear_comparison()
 
     def _rename_discipline(self) -> None:
         discipline_id = self._selected_discipline_id()
@@ -885,6 +932,7 @@ class MainWindow(QMainWindow):
         if dialog.exec() and dialog.value():
             self.database.rename_discipline(discipline_id, dialog.value())
             self._load_content()
+            self._clear_comparison()
 
     def _delete_discipline(self) -> None:
         discipline_id = self._selected_discipline_id()
@@ -898,6 +946,7 @@ class MainWindow(QMainWindow):
         if answer == QMessageBox.StandardButton.Yes:
             self.database.delete_discipline(discipline_id)
             self._load_content()
+            self._clear_comparison()
 
     def _add_topic(self) -> None:
         discipline_id = self._selected_discipline_id()
@@ -909,6 +958,7 @@ class MainWindow(QMainWindow):
             name, canonical = dialog.values()
             self.database.add_topic(discipline_id, name, canonical)
             self._load_topics()
+            self._clear_comparison()
 
     def _edit_topic(self, *_args) -> None:
         topic_id = self._selected_topic_id()
@@ -925,6 +975,7 @@ class MainWindow(QMainWindow):
             name, canonical = dialog.values()
             self.database.update_topic(topic_id, name, canonical)
             self._load_topics()
+            self._clear_comparison()
 
     def _delete_topic(self) -> None:
         topic_id = self._selected_topic_id()
@@ -935,19 +986,29 @@ class MainWindow(QMainWindow):
         if answer == QMessageBox.StandardButton.Yes:
             self.database.delete_topic(topic_id)
             self._load_topics()
+            self._clear_comparison()
+
+    def _clear_comparison(self, *_args) -> None:
+        self.compare_tree.clear()
+        self.compare_score.setText("Selecione dois concursos e inicie a comparação.")
+        self.compare_detail.setText("Estimativa textual baseada nos tópicos cadastrados.")
+        self.compare_detail.setToolTip("")
 
     def _run_comparison(self) -> None:
         id_a, id_b = self.compare_a.currentData(), self.compare_b.currentData()
-        if id_a is None or id_b is None:
+        if self.compare_a.count() < 2 or id_a is None or id_b is None:
             QMessageBox.information(self, "Cadastre concursos", "Cadastre pelo menos dois concursos.")
             return
         if id_a == id_b:
             QMessageBox.information(self, "Seleção inválida", "Escolha dois concursos diferentes.")
             return
-        result = compare_programs(
-            self.database.get_program(int(id_a)),
-            self.database.get_program(int(id_b)),
-        )
+        program_a = self.database.get_program(int(id_a))
+        program_b = self.database.get_program(int(id_b))
+        if not all(any(discipline["topicos"] for discipline in program) for program in (program_a, program_b)):
+            self.compare_score.setText("Conteúdo insuficiente para comparar.")
+            self.compare_detail.setText("Cadastre pelo menos um tópico em cada concurso selecionado.")
+            return
+        result = compare_programs(program_a, program_b)
         self.compare_score.setText(f"Similaridade estimada: {result['percentual']:.1f}%")
         self.compare_detail.setText(
             f"{result['disciplinas_comparadas']} disciplinas associadas · "
@@ -984,17 +1045,6 @@ class MainWindow(QMainWindow):
 
     def _save_settings(self) -> None:
         self.database.set_setting("theme", self.theme)
-        try:
-            if self.startup_check.isChecked():
-                enable_startup()
-                self.database.set_setting("startup_enabled", "1")
-            else:
-                if startup_enabled():
-                    disable_startup()
-                self.database.set_setting("startup_enabled", "0")
-        except Exception as error:
-            QMessageBox.warning(self, "Inicialização do Windows", str(error))
-            return
         count = self.widget_count.value()
         width = self.widget_width.value()
         height = self.widget_height.value()
@@ -1033,6 +1083,12 @@ class MainWindow(QMainWindow):
             return
         try:
             self.database.import_json(Path(path))
+            self.apply_theme(self.database.get_setting("theme", "claro"))
+            with QSignalBlocker(self.theme_combo):
+                self.theme_combo.setCurrentIndex(self.theme_combo.findData(self.theme))
+            self.desktop_widget.load_preferences()
+            self._sync_widget_controls()
+            self._load_profile()
             self._refresh_all()
             QMessageBox.information(self, "Backup importado", "Os dados foram restaurados.")
         except Exception as error:
