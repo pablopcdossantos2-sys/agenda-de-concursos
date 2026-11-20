@@ -4,6 +4,7 @@ import argparse
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import sysconfig
@@ -48,8 +49,8 @@ def makeappx_path() -> str:
     return str(max(candidates, key=lambda path: tuple(map(int, path.parents[1].name.split(".")))))
 
 
-def render_logos(destination: Path) -> None:
-    from PySide6.QtCore import QRectF, Qt
+def render_icons(destination: Path, executable_icon: Path) -> None:
+    from PySide6.QtCore import QByteArray, QBuffer, QIODevice, QRectF, Qt
     from PySide6.QtGui import QGuiApplication, QImage, QPainter
     from PySide6.QtSvg import QSvgRenderer
 
@@ -58,15 +59,34 @@ def render_logos(destination: Path) -> None:
     renderer = QSvgRenderer(str(ROOT / "assets" / "app_icon.svg"))
     if not renderer.isValid():
         raise ValueError("Não foi possível ler o ícone do aplicativo.")
-    for name, size in (("StoreLogo", 50), ("Square44x44Logo", 44), ("Square150x150Logo", 150)):
+    def render(size: int) -> QImage:
         image = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(Qt.GlobalColor.transparent)
         painter = QPainter(image)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         renderer.render(painter, QRectF(0, 0, size, size))
         painter.end()
-        if not image.save(str(destination / f"{name}.png")):
+        return image
+
+    for name, size in (("StoreLogo", 50), ("Square44x44Logo", 44), ("Square150x150Logo", 150)):
+        if not render(size).save(str(destination / f"{name}.png")):
             raise OSError(f"Não foi possível salvar a imagem {name}.")
+
+    # Windows ICO stores a directory followed by each PNG image.
+    sizes = (16, 24, 32, 48, 64, 128, 256)
+    entries = bytearray(struct.pack("<HHH", 0, 1, len(sizes)))
+    images = bytearray()
+    offset = len(entries) + 16 * len(sizes)
+    for size in sizes:
+        data = QByteArray()
+        buffer = QBuffer(data)
+        if not buffer.open(QIODevice.OpenModeFlag.WriteOnly) or not render(size).save(buffer, "PNG"):
+            raise OSError("Não foi possível gerar o ícone do executável.")
+        dimension = size % 256
+        entries.extend(struct.pack("<BBBBHHII", dimension, dimension, 0, 0, 1, 32, len(data), offset))
+        images.extend(bytes(data))
+        offset += len(data)
+    executable_icon.write_bytes(entries + images)
 
 
 def main() -> None:
@@ -86,9 +106,13 @@ def main() -> None:
     makeappx = makeappx_path()
     with TemporaryDirectory(prefix="agenda-msix-") as directory:
         build = Path(directory)
+        store_logos = build / "StoreAssets"
+        executable_icon = build / "AgendaDeConcursos.ico"
+        render_icons(store_logos, executable_icon)
         subprocess.run(
             [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--windowed",
              "--name", APP_NAME, "--onedir", "--add-data", f"{ROOT / 'assets'};assets",
+             "--icon", str(executable_icon),
              "--distpath", str(build), "--workpath", str(build / "work"),
              "--specpath", str(build), str(ROOT / "main.py")],
             cwd=ROOT,
@@ -96,7 +120,7 @@ def main() -> None:
         )
         package = build / APP_NAME
         (package / "AppxManifest.xml").write_text(manifest, encoding="utf-8")
-        render_logos(package / "StoreAssets")
+        store_logos.rename(package / "StoreAssets")
         output.parent.mkdir(parents=True, exist_ok=True)
         subprocess.run([makeappx, "pack", "/d", str(package), "/p", str(output), "/o"], check=True)
     print(output)

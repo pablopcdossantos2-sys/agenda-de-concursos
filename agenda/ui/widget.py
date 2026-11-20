@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 
 from agenda.ui.assets import asset_path
 from agenda.ui.cards import ContestCard
-from agenda.ui.styles import THEMES
+from agenda.ui.styles import DEFAULT_THEME, THEMES
 
 
 class DesktopWidget(QWidget):
@@ -87,7 +87,7 @@ class DesktopWidget(QWidget):
         footer_layout.addWidget(self.open_agenda_button)
         root.addWidget(footer)
 
-        self.apply_theme(database.get_setting("theme", "claro"))
+        self.apply_theme(database.get_setting("theme", DEFAULT_THEME))
         self.load_preferences()
 
     def load_preferences(self) -> None:
@@ -105,7 +105,7 @@ class DesktopWidget(QWidget):
         return max(minimum, min(maximum, value))
 
     def apply_theme(self, theme: str) -> None:
-        self.theme = theme if theme in ("claro", "escuro") else "claro"
+        self.theme = theme if theme in THEMES else DEFAULT_THEME
         c = THEMES[self.theme]
         self.setStyleSheet(f"""
             QWidget#DesktopWidgetRoot {{ background:transparent; border:none; }}

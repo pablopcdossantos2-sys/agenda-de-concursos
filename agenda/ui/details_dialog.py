@@ -70,9 +70,9 @@ class ContestDetailsDialog(QDialog):
         title = _plain_label(str(self.contest.get("nome") or "Concurso sem nome"), "DetailsTitle")
         body.addWidget(title)
 
-        status = _plain_label(str(self.contest.get("status") or "Sem Previsão"), "ContestCardStatus")
+        status = _plain_label(str(self.contest.get("status") or "Sem Previsão"), "ContestDetailsStatus")
+        status.setWordWrap(False)
         status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        status.setMaximumWidth(190)
         body.addWidget(status, 0, Qt.AlignmentFlag.AlignLeft)
 
         self._add_field_section(body, "Informações gerais", list(GENERAL_FIELDS))

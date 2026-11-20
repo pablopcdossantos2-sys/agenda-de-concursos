@@ -26,7 +26,7 @@ from agenda.ui.cards import ContestCard
 from agenda.ui.code_dialogs import ContestCodeDialog, PromptPage
 from agenda.ui.details_dialog import ContestDetailsDialog
 from agenda.ui.dialogs import ContestDialog, NameDialog, TopicDialog
-from agenda.ui.styles import theme_stylesheet
+from agenda.ui.styles import DEFAULT_THEME, THEMES, theme_stylesheet
 from agenda.ui.widget import DesktopWidget
 
 
@@ -34,9 +34,7 @@ class MainWindow(QMainWindow):
     def __init__(self, database: Database):
         super().__init__()
         self.database = database
-        self.theme = database.get_setting("theme", "claro")
-        if self.theme not in ("claro", "escuro"):
-            self.theme = "claro"
+        self.theme = database.get_setting("theme", DEFAULT_THEME)
         self.desktop_widget = DesktopWidget(database)
         self.desktop_widget.contest_selected.connect(self._open_contest_details)
         self.desktop_widget.open_agenda_requested.connect(self._restore_main_window)
@@ -57,7 +55,7 @@ class MainWindow(QMainWindow):
             self.show()
 
     def apply_theme(self, theme: str) -> None:
-        self.theme = theme if theme in ("claro", "escuro") else "claro"
+        self.theme = theme if theme in THEMES else DEFAULT_THEME
         app = QApplication.instance()
         if app is not None:
             app.setStyleSheet(theme_stylesheet(self.theme))
@@ -1069,18 +1067,20 @@ class MainWindow(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "Importar backup", "", "Arquivo JSON (*.json)")
         if not path:
             return
-        answer = QMessageBox.warning(
-            self, "Substituir dados atuais",
+        dialog = QMessageBox(
+            QMessageBox.Icon.Warning, "Substituir dados atuais",
             "A importação substituirá todas as fichas e conteúdos atualmente cadastrados. "
             "Recomenda-se exportar um backup antes de continuar.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel, self,
         )
-        if answer != QMessageBox.StandardButton.Yes:
+        dialog.button(QMessageBox.StandardButton.Yes).setText("Sim")
+        dialog.button(QMessageBox.StandardButton.Cancel).setText("Cancelar")
+        dialog.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        if dialog.exec() != QMessageBox.StandardButton.Yes:
             return
         try:
             self.database.import_json(Path(path))
-            self.apply_theme(self.database.get_setting("theme", "claro"))
+            self.apply_theme(self.database.get_setting("theme", DEFAULT_THEME))
             with QSignalBlocker(self.theme_combo):
                 self.theme_combo.setCurrentIndex(self.theme_combo.findData(self.theme))
             self.desktop_widget.load_preferences()

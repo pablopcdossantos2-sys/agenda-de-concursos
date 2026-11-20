@@ -1,3 +1,6 @@
+DEFAULT_THEME = "escuro"
+
+
 THEMES = {
     "claro": {
         "background": "#F3F6FA",
@@ -46,9 +49,9 @@ THEMES = {
 }
 
 
-def theme_stylesheet(theme: str = "claro") -> str:
+def theme_stylesheet(theme: str = DEFAULT_THEME) -> str:
     """Retorna uma folha de estilos com superfícies explícitas e texto legível."""
-    c = THEMES.get(theme, THEMES["claro"])
+    c = THEMES.get(theme, THEMES[DEFAULT_THEME])
     return f"""
     /* Não pinte cada QWidget individualmente: labels devem herdar a superfície do painel. */
     QWidget {{
@@ -105,6 +108,11 @@ def theme_stylesheet(theme: str = "claro") -> str:
         background: {c['chip_bg']}; color: {c['chip_text']};
         border: 1px solid {c['border']}; border-radius: 8px;
         padding: 2px 8px; font-size: 8pt; font-weight: 700;
+    }}
+    QLabel#ContestDetailsStatus {{
+        background: {c['chip_bg']}; color: {c['chip_text']};
+        border: 1px solid {c['border']}; border-radius: 9px;
+        padding: 5px 12px; font-size: 10pt; font-weight: 700;
     }}
     QFrame#CargoDetailCard, QFrame#ObservationItem {{
         background: {c['secondary']}; border: 1px solid {c['border']}; border-radius: 9px;
@@ -199,4 +207,4 @@ def theme_stylesheet(theme: str = "claro") -> str:
     """
 
 
-APP_STYLE = theme_stylesheet("claro")
+APP_STYLE = theme_stylesheet()

@@ -32,7 +32,7 @@ def main() -> None:
             "orgao": "Órgão de teste",
             "cargo": "Analista",
             "banca": "Banca de teste",
-            "status": "Previsto",
+            "status": "Edital publicado",
             "inscricoes_inicio": (exam_date - timedelta(days=20)).isoformat(),
             "inscricoes_fim": (exam_date - timedelta(days=7)).isoformat(),
             "data_prova": exam_date.isoformat(),
@@ -69,6 +69,8 @@ def main() -> None:
 
         with patch.object(QSystemTrayIcon, "isSystemTrayAvailable", return_value=False):
             window = MainWindow(database)
+            assert window.theme == window.desktop_widget.theme == "escuro"
+            assert not window.windowIcon().pixmap(32, 32).isNull()
             assert window.tray_icon.isVisible()
             assert not window.tray_icon.icon().pixmap(16, 16).isNull()
             assert not app.quitOnLastWindowClosed()
@@ -129,6 +131,10 @@ def main() -> None:
         assert not fundamental.isChecked() and fundamental.text() == "Fundamental"
         detail.show()
         app.processEvents()
+        status = detail.findChild(QLabel, "ContestDetailsStatus")
+        assert status.text() == "Edital publicado" and not status.wordWrap()
+        assert status.width() >= status.fontMetrics().horizontalAdvance(status.text()) + 24
+        assert status.height() >= status.fontMetrics().height() + 10
         detail.close()
 
         widget = window.desktop_widget
@@ -212,22 +218,29 @@ def main() -> None:
         backup_db = Database(Path(directory) / "backup.db")
         backup_db.save_contest({"nome": "Concurso restaurado"})
         backup_db.save_user_profile({"niveis_escolaridade": ["Médio/Técnico"], "cargos_desejados": ["Técnico"]})
-        backup_db.set_setting("theme", "escuro")
+        backup_db.set_setting("theme", "claro")
         backup_db.set_setting("widget_items", "2")
         backup_db.set_setting("widget_width", "480")
         backup_db.set_setting("widget_height", "invalid")
         backup_path = Path(directory) / "backup.json"
         backup_db.export_json(backup_path)
+
+        def confirm(dialog):
+            assert dialog.button(QMessageBox.StandardButton.Yes).text() == "Sim"
+            assert dialog.button(QMessageBox.StandardButton.Cancel).text() == "Cancelar"
+            assert dialog.defaultButton() is dialog.button(QMessageBox.StandardButton.Cancel)
+            return QMessageBox.StandardButton.Yes
+
         with (
             patch("agenda.ui.main_window.QFileDialog.getOpenFileName", return_value=(str(backup_path), "")),
-            patch.object(QMessageBox, "warning", return_value=QMessageBox.StandardButton.Yes),
+            patch.object(QMessageBox, "exec", new=confirm),
             patch.object(QMessageBox, "information") as success,
             patch.object(QMessageBox, "critical") as error,
         ):
             window._import_backup()
             error.assert_not_called()
             success.assert_called_once()
-        assert window.theme == "escuro" and window.theme_combo.currentData() == "escuro"
+        assert window.theme == "claro" and window.theme_combo.currentData() == "claro"
         assert window.profile_level_checks["Médio/Técnico"].isChecked()
         assert window.profile_roles_edit.toPlainText() == "Técnico"
         assert widget.width() == window.widget_width.value() == 480
